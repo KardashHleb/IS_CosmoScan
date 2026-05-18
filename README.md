@@ -532,7 +532,7 @@ curl http://localhost:8090/works/00000000-0000-0000-0000-000000000001/word-cloud
 
 API-запросы портала идут на Gateway (`localhost:8090`). Внешний JS — **wordcloud2** с CDN (см. [сборка и зависимости](#сборка-и-зависимости)).
 
-Отчёты JaCoCo после `docker compose up --build`: http://localhost:8094/reports/submission/index.html (и `files`, `analysis`). Открывайте через портал **:8094**, не `file://`.
+Отчёты JaCoCo после `docker compose up --build`: http://localhost:8094/reports/submission/index.html (и `files`, `analysis`).
 
 ---
 
