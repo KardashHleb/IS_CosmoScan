@@ -1,1 +1,6 @@
 rootProject.name = 'CosmoScan'
+
+include 'gateway'
+include 'submission-service'
+include 'file-storing-service'
+include 'analysis-service'

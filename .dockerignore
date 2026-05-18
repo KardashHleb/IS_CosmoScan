@@ -1,0 +1,10 @@
+.git
+.idea
+.gradle
+**/build
+out
+storage
+*.iml
+*.ipr
+*.iws
+.DS_Store

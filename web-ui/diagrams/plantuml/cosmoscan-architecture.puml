@@ -1,0 +1,55 @@
+@startuml cosmoscan-architecture
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam roundcorner 8
+skinparam linetype ortho
+
+title CosmoScan — архитектура системы
+
+actor "Пользователь\n(браузер)" as user
+
+package "Портал" #E8F4F8 {
+  [web-ui\n:8094\nnginx] as ui
+}
+
+package "API Gateway" #E8EAF6 {
+  [API Gateway\n:8090\nSpring Cloud Gateway] as gw
+}
+
+package "Микросервисы" #E8F5E9 {
+  [submission-service\n:8091\nPOST /works] as sub
+  [file-storing-service\n:8092\nPOST/GET /files] as fs
+  [analysis-service\n:8093\nотчёты, word cloud] as ana
+}
+
+database "PostgreSQL\n:5433\nworks" as subdb
+database "PostgreSQL\n:5434\nотчёты, word cloud" as anadb
+storage "Диск\nфайлы работ" as fsdisk
+storage "Диск\nJSON отчётов" as rptdisk
+
+user --> ui : открывает портал
+ui --> gw : fetch API\n(POST /works, GET …)
+user --> gw : Swagger
+
+gw --> sub : POST /works
+gw --> fs : POST/GET /files
+gw --> ana : GET /works/{id}/reports\nGET /works/{id}/word-cloud
+
+sub --> subdb
+sub --> fs : POST /files
+sub ..> ana : POST /internal/analysis\n(не через Gateway)
+
+ana --> anadb
+ana --> fs : GET /files/{id}
+ana --> rptdisk
+fs --> fsdisk
+
+note right of gw
+  Внутренний вызов
+  /internal/analysis
+  только submission → analysis
+end note
+
+@enduml

@@ -1,0 +1,143 @@
+services:
+  submission-db:
+    image: postgres:16-alpine
+    container_name: cosmoscan-submission-db
+    environment:
+      POSTGRES_DB: cosmoscan_submission
+      POSTGRES_USER: cosmoscan
+      POSTGRES_PASSWORD: cosmoscan
+    ports:
+      - "5433:5432"
+    volumes:
+      - submission_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cosmoscan -d cosmoscan_submission"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  analysis-db:
+    image: postgres:16-alpine
+    container_name: cosmoscan-analysis-db
+    environment:
+      POSTGRES_DB: cosmoscan_analysis
+      POSTGRES_USER: cosmoscan
+      POSTGRES_PASSWORD: cosmoscan
+    ports:
+      - "5434:5432"
+    volumes:
+      - analysis_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cosmoscan -d cosmoscan_analysis"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  file-storing-service:
+    build:
+      context: .
+      dockerfile: file-storing-service/Dockerfile
+    container_name: cosmoscan-file-storing-service
+    ports:
+      - "8092:8092"
+    environment:
+      STORAGE_FILES_PATH: /app/storage/files
+    volumes:
+      - file_storing_data:/app/storage/files
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8092/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  analysis-service:
+    build:
+      context: .
+      dockerfile: analysis-service/Dockerfile
+    container_name: cosmoscan-analysis-service
+    ports:
+      - "8093:8093"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://analysis-db:5432/cosmoscan_analysis
+      SPRING_DATASOURCE_USERNAME: cosmoscan
+      SPRING_DATASOURCE_PASSWORD: cosmoscan
+      FILE_STORING_BASE_URL: http://file-storing-service:8092
+      STORAGE_REPORTS_PATH: /app/storage/reports
+    volumes:
+      - analysis_reports_storage:/app/storage/reports
+    depends_on:
+      analysis-db:
+        condition: service_healthy
+      file-storing-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8093/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  submission-service:
+    build:
+      context: .
+      dockerfile: submission-service/Dockerfile
+    container_name: cosmoscan-submission-service
+    ports:
+      - "8091:8091"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://submission-db:5432/cosmoscan_submission
+      SPRING_DATASOURCE_USERNAME: cosmoscan
+      SPRING_DATASOURCE_PASSWORD: cosmoscan
+      FILE_STORING_BASE_URL: http://file-storing-service:8092
+      ANALYSIS_BASE_URL: http://analysis-service:8093
+    depends_on:
+      submission-db:
+        condition: service_healthy
+      file-storing-service:
+        condition: service_healthy
+      analysis-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8091/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    container_name: cosmoscan-gateway
+    ports:
+      - "8090:8090"
+    environment:
+      SUBMISSION_SERVICE_URI: http://submission-service:8091
+      FILE_STORING_SERVICE_URI: http://file-storing-service:8092
+      ANALYSIS_SERVICE_URI: http://analysis-service:8093
+    depends_on:
+      submission-service:
+        condition: service_healthy
+      file-storing-service:
+        condition: service_healthy
+      analysis-service:
+        condition: service_healthy
+
+  web-ui:
+    build:
+      context: .
+      dockerfile: web-ui/Dockerfile
+    container_name: cosmoscan-web-ui
+    ports:
+      - "8094:80"
+    depends_on:
+      - gateway
+
+volumes:
+  submission_pg_data:
+  analysis_pg_data:
+  file_storing_data:
+  analysis_reports_storage:

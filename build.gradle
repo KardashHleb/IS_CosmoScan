@@ -1,20 +1,83 @@
 plugins {
     id 'java'
+    id 'org.springframework.boot' version '3.3.5' apply false
+    id 'io.spring.dependency-management' version '1.1.6' apply false
 }
 
-group = 'org.example'
-version = '1.0-SNAPSHOT'
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'org.springframework.boot'
+    apply plugin: 'io.spring.dependency-management'
 
-repositories {
-    mavenCentral()
+    group = 'com.cosmoscan'
+    version = '1.0-SNAPSHOT'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencyManagement {
+        imports {
+            mavenBom 'org.springdoc:springdoc-openapi:2.6.0'
+        }
+    }
+
+    apply plugin: 'jacoco'
+
+    tasks.named('test') {
+        useJUnitPlatform()
+        finalizedBy jacocoTestReport
+    }
+
+    jacocoTestReport {
+        dependsOn test
+        reports {
+            xml.required = true
+            html.required = true
+        }
+    }
 }
 
-dependencies {
-    testImplementation platform('org.junit:junit-bom:5.10.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+tasks.register('copyJacocoReportsForWeb', Copy) {
+    group = 'reporting'
+    description = 'Copies JaCoCo HTML reports into web-ui/reports for the user portal'
+    dependsOn ':submission-service:jacocoTestReport',
+            ':file-storing-service:jacocoTestReport',
+            ':analysis-service:jacocoTestReport'
+    into layout.projectDirectory.dir('web-ui/reports')
+    from(project(':submission-service').layout.buildDirectory.dir('reports/jacoco/test/html')) {
+        into 'submission'
+    }
+    from(project(':file-storing-service').layout.buildDirectory.dir('reports/jacoco/test/html')) {
+        into 'files'
+    }
+    from(project(':analysis-service').layout.buildDirectory.dir('reports/jacoco/test/html')) {
+        into 'analysis'
+    }
 }
 
-test {
-    useJUnitPlatform()
+configure(subprojects.findAll { it.name in ['submission-service', 'file-storing-service', 'analysis-service'] }) {
+    tasks.named('jacocoTestCoverageVerification') {
+        dependsOn tasks.named('test')
+    }
+
+    tasks.named('check') {
+        dependsOn tasks.named('jacocoTestCoverageVerification')
+    }
+
+    jacocoTestCoverageVerification {
+        violationRules {
+            rule {
+                limit {
+                    minimum = 0.60
+                }
+            }
+        }
+    }
 }
