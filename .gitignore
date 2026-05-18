@@ -41,3 +41,9 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### CosmoScan ###
+storage/
+web-ui/reports/submission/
+web-ui/reports/files/
+web-ui/reports/analysis/

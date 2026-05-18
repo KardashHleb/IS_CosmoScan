@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CosmoScan — портал пользователя</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.min.js" defer></script>
+  <script src="assets/js/app.js" defer></script>
+</head>
+<body>
+  <header class="site-header container">
+    <h1>CosmoScan</h1>
+    <p class="tagline">Портал приёма студенческих работ, техпроверки и визуализации содержания</p>
+  </header>
+
+  <nav class="top-nav container" aria-label="Разделы портала">
+    <a href="#architecture">Архитектура</a>
+    <a href="#docs">API и Swagger</a>
+    <a href="#health">Health</a>
+    <a href="#submit">Сдать работу</a>
+    <a href="#reports">Отчёты</a>
+    <a href="#word-cloud-section">Облако слов</a>
+    <a href="#coverage">JaCoCo</a>
+  </nav>
+
+  <main class="container">
+    <section class="card" id="architecture" aria-labelledby="arch-title">
+      <h2 id="arch-title">Схема системы</h2>
+      <p class="lead">CosmoScan — микросервисы за API Gateway. Портал отправляет запросы на Gateway; сервисы обмениваются данными во внутренней сети.</p>
+
+      <figure class="arch-figure">
+        <img
+          class="arch-image"
+          src="assets/images/cosmoscan-architecture.png"
+          alt="Схема CosmoScan: web-ui, API Gateway, submission, file-storing, analysis, PostgreSQL и диски"
+          width="960"
+          loading="lazy">
+        <figcaption>Диаграмма архитектуры</figcaption>
+      </figure>
+
+      <figure class="arch-figure arch-figure--secondary">
+        <img
+          class="arch-image"
+          src="assets/images/cosmoscan-uc1-sequence.png"
+          alt="Диаграмма последовательности UC-1"
+          width="960"
+          loading="lazy">
+        <figcaption>Диаграмма последовательности UC-1</figcaption>
+      </figure>
+    </section>
+
+    <section class="card" aria-labelledby="config-title">
+      <h2 id="config-title">Подключение к API</h2>
+      <p class="lead">Запросы с форм ниже отправляются на API Gateway (см. схему выше).</p>
+      <div class="form-field">
+        <label for="apiBaseUrl">Базовый URL Gateway</label>
+        <span class="field-hint">Адрес единой точки входа. По умолчанию — порт <code>8090</code>. Меняйте только при нестандартном развёртывании.</span>
+        <input type="url" id="apiBaseUrl" name="apiBaseUrl" value="http://localhost:8090" autocomplete="url">
+      </div>
+    </section>
+
+    <!-- Swagger -->
+    <section class="card" id="docs" aria-labelledby="docs-title">
+      <h2 id="docs-title">Документация API (Swagger UI)</h2>
+      <p class="lead">Интерактивная OpenAPI-документация каждого микросервиса, проксируется через Gateway.</p>
+      <div class="link-grid">
+        <a class="link-tile" data-swagger="submission" href="http://localhost:8090/swagger/submission/swagger-ui/index.html" target="_blank" rel="noopener">
+          <strong>submission-service</strong>
+          <span class="link-url">POST /works — приём работ</span>
+          <span class="tile-desc">Сценарий сдачи работы студентом, модель WorkResponse.</span>
+        </a>
+        <a class="link-tile" data-swagger="files" href="http://localhost:8090/swagger/files/swagger-ui/index.html" target="_blank" rel="noopener">
+          <strong>file-storing-service</strong>
+          <span class="link-url">POST/GET /files</span>
+          <span class="tile-desc">Загрузка и скачивание файлов (pdf, docx, txt, до 1 MiB).</span>
+        </a>
+        <a class="link-tile" data-swagger="analysis" href="http://localhost:8090/swagger/analysis/swagger-ui/index.html" target="_blank" rel="noopener">
+          <strong>analysis-service</strong>
+          <span class="link-url">GET /works/{id}/reports, /word-cloud</span>
+          <span class="tile-desc">Техотчёты и данные для облака слов.</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- Health -->
+    <section class="card" id="health" aria-labelledby="health-title">
+      <h2 id="health-title">Health check (Spring Actuator)</h2>
+      <p class="lead">Прямые ссылки на <code>/actuator/health</code> backend-сервисов. Gateway Actuator не использует.</p>
+      <div class="link-grid">
+        <a class="link-tile" href="http://localhost:8091/actuator/health" target="_blank" rel="noopener">
+          <strong>submission-service</strong>
+          <span class="link-url">http://localhost:8091/actuator/health</span>
+          <span class="tile-desc">Откроется в новой вкладке — JSON Actuator.</span>
+        </a>
+        <a class="link-tile" href="http://localhost:8092/actuator/health" target="_blank" rel="noopener">
+          <strong>file-storing-service</strong>
+          <span class="link-url">http://localhost:8092/actuator/health</span>
+          <span class="tile-desc">Откроется в новой вкладке — JSON Actuator.</span>
+        </a>
+        <a class="link-tile" href="http://localhost:8093/actuator/health" target="_blank" rel="noopener">
+          <strong>analysis-service</strong>
+          <span class="link-url">http://localhost:8093/actuator/health</span>
+          <span class="tile-desc">Откроется в новой вкладке — JSON Actuator.</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- Submit work UC-1 -->
+    <section class="card" id="submit" aria-labelledby="submit-title">
+      <h2 id="submit-title"><span class="scenario-id">UC-1</span> Сдать работу</h2>
+      <p class="lead">Студент загружает файл и сразу получает результат техпроверки. Соответствует <code>POST /works</code>.</p>
+
+      <form id="submitWorkForm" novalidate>
+        <div class="form-field">
+          <label for="studentFullName">Поле «ФИО студента»</label>
+          <span class="field-hint">Обязательный текстовый параметр <code>studentFullName</code> в multipart-запросе. Отображается в метаданных работы и передаётся в analysis-service.</span>
+          <input type="text" id="studentFullName" name="studentFullName" placeholder="Иванов Иван Иванович" required autocomplete="name">
+        </div>
+
+        <div class="form-field">
+          <label for="workFile">Поле «Файл работы»</label>
+          <span class="field-hint">Параметр <code>file</code>. Допустимые форматы: PDF, DOCX, TXT. Максимальный размер — 1 MiB. ZIP и другие типы отклоняются с <code>400</code>.</span>
+          <input type="file" id="workFile" name="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" required>
+        </div>
+
+        <div class="form-field">
+          <label>Кнопка «Сдать работу»</label>
+          <span class="field-hint">Отправляет форму на Gateway. При успехе (<code>201</code>) в ответе — <code>id</code> работы, <code>fileId</code> и блок <code>technicalReport</code> (статус ACCEPTED или NEEDS_REVISION и список замечаний).</span>
+          <div class="btn-row">
+            <button type="submit" class="btn-primary">Сдать работу</button>
+          </div>
+        </div>
+      </form>
+
+      <details class="result-panel result-panel--collapsible" id="submitResult" aria-live="polite">
+        <summary>Ответ сервера (JSON)</summary>
+        <pre></pre>
+      </details>
+
+      <div class="submissions-history" id="submissionsHistory" hidden>
+        <h3 class="submissions-history__title">Сданные работы (для теста UC-2 / UC-3)</h3>
+        <p class="field-hint">Список сохраняется в браузере. Клик по строке подставит ID работы в поля ниже.</p>
+        <div class="table-wrap">
+          <table class="data-table" id="submissionsTable">
+            <thead>
+              <tr>
+                <th>ФИО студента</th>
+                <th>ID работы</th>
+                <th>Файл</th>
+                <th>Сдано</th>
+              </tr>
+            </thead>
+            <tbody id="submissionsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Reports UC-2 -->
+    <section class="card" id="reports" aria-labelledby="reports-title">
+      <h2 id="reports-title"><span class="scenario-id">UC-2</span> Технические отчёты</h2>
+      <p class="lead">Преподаватель запрашивает историю техпроверок по идентификатору работы. <code>GET /works/{workId}/reports</code>.</p>
+
+      <div class="form-field">
+        <label for="workIdReports">Поле «ID работы»</label>
+        <span class="field-hint">UUID из ответа UC-1 (поле <code>id</code>). Обновляется при каждой новой сдаче или по клику в таблице выше.</span>
+        <input type="text" id="workIdReports" name="workIdReports" placeholder="00000000-0000-0000-0000-000000000001" pattern="[0-9a-fA-F-]{36}">
+      </div>
+
+      <div class="form-field">
+        <label>Кнопка «Загрузить отчёты»</label>
+        <span class="field-hint">Возвращает массив отчётов, отсортированных по дате (новые первыми): статус, замечания, время проверки.</span>
+        <div class="btn-row">
+          <button type="button" class="btn-secondary" id="btnFetchReports">Загрузить отчёты</button>
+        </div>
+      </div>
+
+      <details class="result-panel result-panel--collapsible" id="reportsResult" aria-live="polite">
+        <summary>Отчёты (JSON)</summary>
+        <pre></pre>
+      </details>
+    </section>
+
+    <!-- Word cloud UC-3 -->
+    <section class="card" id="word-cloud-section" aria-labelledby="wc-title">
+      <h2 id="wc-title"><span class="scenario-id">UC-3</span> Облако слов</h2>
+      <p class="lead">Частотный срез текста работы для визуализации. Данные готовятся при сдаче (UC-1); чтение — <code>GET /works/{workId}/word-cloud</code>.</p>
+
+      <div class="form-field">
+        <label for="workIdWordCloud">Поле «ID работы»</label>
+        <span class="field-hint">Тот же UUID, что и для отчётов. Обновляется при каждой новой сдаче. Если analyze не выполнялся, API вернёт <code>404</code>.</span>
+        <input type="text" id="workIdWordCloud" name="workIdWordCloud" placeholder="UUID работы">
+      </div>
+
+      <div class="form-field">
+        <label>Кнопка «Получить облако слов»</label>
+        <span class="field-hint">Запрашивает JSON с полем <code>terms</code> (<code>text</code>, <code>weight</code>). При статусе <code>READY</code> термины рисуются на холсте ниже. <code>NO_TEXT</code> / <code>FAILED</code> — сообщение без графика.</span>
+        <div class="btn-row">
+          <button type="button" class="btn-primary" id="btnWordCloud">Получить облако слов</button>
+        </div>
+      </div>
+
+      <details class="result-panel result-panel--collapsible" id="wordCloudResult" aria-live="polite">
+        <summary>Данные word cloud (JSON)</summary>
+        <pre></pre>
+      </details>
+
+      <p id="wordCloudMessage" class="word-cloud-empty" style="display: none;"></p>
+      <canvas id="wordCloudCanvas" width="800" height="360" role="img" aria-label="Визуализация облака слов"></canvas>
+    </section>
+
+    <!-- JaCoCo -->
+    <section class="card" id="coverage" aria-labelledby="coverage-title">
+      <h2 id="coverage-title">Покрытие тестами (JaCoCo)</h2>
+      <p class="lead">HTML-отчёты JaCoCo (порог ≥ 60%). Ссылки ведут на <strong>http://localhost:8094</strong> — нужен запущенный <code>web-ui</code> (<code>docker compose up -d --build web-ui</code>).</p>
+      <div class="link-grid">
+        <a class="link-tile" href="http://localhost:8094/reports/submission/index.html" target="_blank" rel="noopener">
+          <strong>submission-service</strong>
+          <span>http://localhost:8094/reports/submission/index.html</span>
+          <span class="tile-desc">Приём работ, валидация, интеграция с file-storing и analysis.</span>
+        </a>
+        <a class="link-tile" href="http://localhost:8094/reports/files/index.html" target="_blank" rel="noopener">
+          <strong>file-storing-service</strong>
+          <span>http://localhost:8094/reports/files/index.html</span>
+          <span class="tile-desc">Хранение файлов, валидация формата и размера.</span>
+        </a>
+        <a class="link-tile" href="http://localhost:8094/reports/analysis/index.html" target="_blank" rel="noopener">
+          <strong>analysis-service</strong>
+          <span>http://localhost:8094/reports/analysis/index.html</span>
+          <span class="tile-desc">Техпроверка, word cloud, отчёты.</span>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer container">
+    CosmoScan · API Gateway :8090 · Портал :8094
+  </footer>
+</body>
+</html>

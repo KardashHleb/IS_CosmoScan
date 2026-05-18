@@ -1,0 +1,30 @@
+@startuml cosmoscan-uc1-sequence
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+
+title UC-1 — Сдача работы (POST /works)
+
+actor "Пользователь" as user
+participant "web-ui\n:8094" as ui
+participant "Gateway\n:8090" as gw
+participant "submission\n:8091" as sub
+participant "file-storing\n:8092" as fs
+participant "analysis\n:8093" as ana
+
+user -> ui : ФИО + файл
+ui -> gw : POST /works (multipart)
+gw -> sub : POST /works
+sub -> fs : POST /files
+fs --> sub : fileId
+sub -> sub : сохранить Work
+sub -> ana : POST /internal/analysis
+ana -> fs : GET /files/{fileId}
+ana -> ana : техпроверка +\nword cloud (Tika)
+ana --> sub : TechnicalReport
+sub --> gw : WorkResponse (id)
+gw --> ui : 201 Created
+ui --> user : id, technicalReport
+
+@enduml

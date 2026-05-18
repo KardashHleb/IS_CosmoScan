@@ -1,0 +1,64 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: gateway
+  codec:
+    max-in-memory-size: 2MB
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+      routes:
+        - id: swagger-submission
+          uri: ${SUBMISSION_SERVICE_URI:http://localhost:8091}
+          predicates:
+            - Path=/swagger/submission/**
+          filters:
+            - StripPrefix=2
+        - id: swagger-files
+          uri: ${FILE_STORING_SERVICE_URI:http://localhost:8092}
+          predicates:
+            - Path=/swagger/files/**
+          filters:
+            - StripPrefix=2
+        - id: swagger-analysis
+          uri: ${ANALYSIS_SERVICE_URI:http://localhost:8093}
+          predicates:
+            - Path=/swagger/analysis/**
+          filters:
+            - StripPrefix=2
+        - id: analysis-reports
+          uri: ${ANALYSIS_SERVICE_URI:http://localhost:8093}
+          predicates:
+            - Method=GET
+            - Path=/works/*/reports
+        - id: analysis-word-cloud
+          uri: ${ANALYSIS_SERVICE_URI:http://localhost:8093}
+          predicates:
+            - Method=GET
+            - Path=/works/*/word-cloud
+        - id: file-storing-service
+          uri: ${FILE_STORING_SERVICE_URI:http://localhost:8092}
+          predicates:
+            - Path=/files,/files/**
+        - id: submission-service
+          uri: ${SUBMISSION_SERVICE_URI:http://localhost:8091}
+          predicates:
+            - Path=/works,/works/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
