@@ -50,7 +50,7 @@ flowchart TB
     SUB -->|POST /internal/analysis| ANA
 
     ANA --> ANADB
-    ANA -->|GET /files/{id}| FS
+    ANA -->|"GET /files/{id}"| FS
     ANA --> RPTDISK
     FS --> FSDISK
 ```
