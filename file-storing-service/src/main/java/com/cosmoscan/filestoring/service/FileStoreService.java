@@ -9,6 +9,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.util.FileSystemUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -74,6 +75,14 @@ public class FileStoreService {
                 : MediaType.APPLICATION_OCTET_STREAM;
 
         return new StoredFileResource(resource, metadata.originalFileName(), mediaType);
+    }
+
+    /** Removes the file and its metadata. Used by submission-service to clean up after a failed submit. */
+    public void delete(UUID fileId) throws IOException {
+        Path fileDirectory = filesRoot.resolve(fileId.toString());
+        if (!FileSystemUtils.deleteRecursively(fileDirectory)) {
+            throw new FileNotFoundException("File not found: " + fileId);
+        }
     }
 
     private StoredFileMetadata readMetadata(UUID fileId) throws IOException {
