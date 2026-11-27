@@ -16,7 +16,7 @@ public class OpenApiConfig {
     public OpenAPI openAPI(@Value("${server.port:8091}") int serverPort) {
         return new OpenAPI()
                 .info(new Info()
-                        .title("CosmoScan — Submission Service")
+                        .title("CosmoScan - Submission Service")
                         .description("""
                                 Accepts student work submissions (multipart), stores files via file-storing,
                                 persists work metadata, and triggers technical analysis.

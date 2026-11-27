@@ -16,7 +16,7 @@ public class OpenApiConfig {
     public OpenAPI openAPI(@Value("${server.port:8093}") int serverPort) {
         return new OpenAPI()
                 .info(new Info()
-                        .title("CosmoScan — Analysis Service")
+                        .title("CosmoScan - Analysis Service")
                         .description("""
                                 Runs technical checks on submitted works and stores technical reports.
 

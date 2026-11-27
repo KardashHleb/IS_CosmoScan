@@ -16,8 +16,8 @@ public class FileStoringClient {
 
     private final RestClient restClient;
 
-    public FileStoringClient(ServiceClientProperties properties) {
-        this.restClient = RestClient.builder()
+    public FileStoringClient(ServiceClientProperties properties, RestClient.Builder restClientBuilder) {
+        this.restClient = restClientBuilder
                 .baseUrl(properties.getFileStoringBaseUrl())
                 .build();
     }

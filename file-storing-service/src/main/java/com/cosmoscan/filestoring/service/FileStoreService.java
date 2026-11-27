@@ -14,7 +14,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -64,12 +63,12 @@ public class FileStoreService {
 
     public StoredFileResource load(UUID fileId) throws IOException {
         StoredFileMetadata metadata = readMetadata(fileId);
-        Path filePath = Path.of(metadata.storagePath());
-        if (!Files.exists(filePath)) {
+        // isReadable() is false for a missing file as well as for a directory or an unreadable file
+        Resource resource = new UrlResource(Path.of(metadata.storagePath()).toUri());
+        if (!resource.isReadable()) {
             throw new FileNotFoundException("File content not found for id: " + fileId);
         }
 
-        Resource resource = toResource(filePath);
         MediaType mediaType = metadata.contentType() != null
                 ? MediaType.parseMediaType(metadata.contentType())
                 : MediaType.APPLICATION_OCTET_STREAM;
@@ -91,14 +90,6 @@ public class FileStoreService {
             throw new FileNotFoundException("File not found: " + fileId);
         }
         return objectMapper.readValue(metadataPath.toFile(), StoredFileMetadata.class);
-    }
-
-    private static Resource toResource(Path filePath) throws MalformedURLException {
-        Resource resource = new UrlResource(filePath.toUri());
-        if (!resource.exists() || !resource.isReadable()) {
-            throw new FileNotFoundException("Unreadable file: " + filePath);
-        }
-        return resource;
     }
 
     private static String sanitizeFileName(String fileName) {

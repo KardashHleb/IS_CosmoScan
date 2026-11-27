@@ -9,8 +9,8 @@ public class AnalysisClient {
 
     private final RestClient restClient;
 
-    public AnalysisClient(ServiceClientProperties properties) {
-        this.restClient = RestClient.builder()
+    public AnalysisClient(ServiceClientProperties properties, RestClient.Builder restClientBuilder) {
+        this.restClient = restClientBuilder
                 .baseUrl(properties.getAnalysisBaseUrl())
                 .build();
     }

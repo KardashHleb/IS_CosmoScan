@@ -16,7 +16,7 @@ public class OpenApiConfig {
     public OpenAPI openAPI(@Value("${server.port:8092}") int serverPort) {
         return new OpenAPI()
                 .info(new Info()
-                        .title("CosmoScan — File Storing Service")
+                        .title("CosmoScan - File Storing Service")
                         .description("""
                                 Stores uploaded work files on disk and serves them by `fileId`.
 

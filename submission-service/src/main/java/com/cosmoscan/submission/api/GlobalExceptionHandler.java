@@ -17,7 +17,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpClientErrorException.BadRequest.class)
     public ProblemDetail handleBadRequestFromDownstream(HttpClientErrorException.BadRequest ex) {
         String detail = ex.getResponseBodyAsString();
-        if (detail == null || detail.isBlank()) {
+        if (detail.isBlank()) {
             detail = "Invalid file";
         }
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
