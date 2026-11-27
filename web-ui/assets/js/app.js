@@ -51,9 +51,9 @@
   }
 
   function formatInstant(value) {
-    if (!value) return "—";
+    if (!value) return "-";
     try {
-      return new Date(value).toLocaleString("ru-RU");
+      return new Date(value).toLocaleString("en-GB");
     } catch {
       return String(value);
     }
@@ -146,7 +146,7 @@
         return (
           "<tr data-work-id=\"" +
           escapeHtml(row.id) +
-          "\" tabindex=\"0\" role=\"button\" title=\"Подставить ID в UC-2 и UC-3\">" +
+          "\" tabindex=\"0\" role=\"button\" title=\"Use this ID in UC-2 and UC-3\">" +
           "<td>" +
           escapeHtml(row.studentFullName) +
           "</td>" +
@@ -190,7 +190,7 @@
       const name = els.studentName?.value?.trim();
       const file = els.workFile?.files?.[0];
       if (!name || !file) {
-        setResult(els.submitResult, "Укажите ФИО и выберите файл.", true);
+        setResult(els.submitResult, "Enter the student name and choose a file.", true);
         return;
       }
 
@@ -238,7 +238,7 @@
     els.btnFetchReports.addEventListener("click", async function () {
       const workId = els.workIdReports?.value?.trim();
       if (!workId) {
-        setResult(els.reportsResult, "Введите UUID работы.", true);
+        setResult(els.reportsResult, "Enter the work UUID.", true);
         return;
       }
       els.btnFetchReports.disabled = true;
@@ -264,7 +264,7 @@
       els.wordCloudCanvas.style.display = "none";
       if (els.wordCloudMessage) {
         els.wordCloudMessage.style.display = "block";
-        els.wordCloudMessage.textContent = "Нет терминов для отображения.";
+        els.wordCloudMessage.textContent = "No terms to display.";
       }
       return;
     }
@@ -295,11 +295,11 @@
     els.btnWordCloud.addEventListener("click", async function () {
       const workId = els.workIdWordCloud?.value?.trim();
       if (!workId) {
-        setResult(els.wordCloudResult, "Введите UUID работы.", true);
+        setResult(els.wordCloudResult, "Enter the work UUID.", true);
         return;
       }
       els.btnWordCloud.disabled = true;
-      els.btnWordCloud.textContent = "Загрузка…";
+      els.btnWordCloud.textContent = "Loading...";
       try {
         const data = await fetchJson(
           gatewayUrl() + "/works/" + encodeURIComponent(workId) + "/word-cloud"
@@ -313,10 +313,10 @@
             els.wordCloudMessage.style.display = "block";
             els.wordCloudMessage.textContent =
               data.status === "NO_TEXT"
-                ? "Текст в файле не извлечён — облако недоступно."
+                ? "No text could be extracted from the file, so there is no word cloud."
                 : data.status === "FAILED"
-                  ? "Ошибка при построении облака слов."
-                  : "Статус: " + data.status;
+                  ? "Word cloud generation failed."
+                  : "Status: " + data.status;
           }
         }
       } catch (err) {
@@ -325,7 +325,7 @@
         if (els.wordCloudMessage) els.wordCloudMessage.style.display = "none";
       } finally {
         els.btnWordCloud.disabled = false;
-        els.btnWordCloud.textContent = "Получить облако слов";
+        els.btnWordCloud.textContent = "Get word cloud";
       }
     });
   }

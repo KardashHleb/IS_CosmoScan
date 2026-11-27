@@ -88,3 +88,27 @@ tasks.register('copyJacocoReportsForWeb', Copy) {
         }
     }
 }
+
+// Diagrams shown on the portal: web-ui/diagrams/plantuml/*.puml -> web-ui/assets/images/*.png
+repositories {
+    mavenCentral()
+}
+
+configurations {
+    plantuml
+}
+
+dependencies {
+    plantuml 'net.sourceforge.plantuml:plantuml:1.2024.7'
+}
+
+tasks.register('renderDiagrams', JavaExec) {
+    group = 'documentation'
+    description = 'Renders the PlantUML diagrams of the portal to PNG'
+    classpath = configurations.plantuml
+    mainClass = 'net.sourceforge.plantuml.Run'
+    def sources = fileTree('web-ui/diagrams/plantuml') { include '*.puml' }
+    inputs.files sources
+    outputs.dir 'web-ui/assets/images'
+    args(['-tpng', '-charset', 'UTF-8', '-o', file('web-ui/assets/images').absolutePath] + sources.files*.absolutePath)
+}
