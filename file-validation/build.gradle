@@ -1,0 +1,7 @@
+// Plain library shared by the services: no Spring Boot plugin, no bootJar.
+dependencies {
+    // MultipartFile comes from the service that uses the library
+    compileOnly 'org.springframework:spring-web'
+    testImplementation 'org.springframework:spring-web'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}

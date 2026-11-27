@@ -3,17 +3,17 @@ package com.cosmoscan.filestoring.service;
 import com.cosmoscan.filestoring.api.dto.StoredFileResponse;
 import com.cosmoscan.filestoring.config.StorageProperties;
 import com.cosmoscan.filestoring.domain.StoredFileMetadata;
-import com.cosmoscan.filestoring.validation.AllowedFileValidator;
+import com.cosmoscan.filevalidation.AllowedFileValidator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.util.FileSystemUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -63,17 +63,25 @@ public class FileStoreService {
 
     public StoredFileResource load(UUID fileId) throws IOException {
         StoredFileMetadata metadata = readMetadata(fileId);
-        Path filePath = Path.of(metadata.storagePath());
-        if (!Files.exists(filePath)) {
+        // isReadable() is false for a missing file as well as for a directory or an unreadable file
+        Resource resource = new UrlResource(Path.of(metadata.storagePath()).toUri());
+        if (!resource.isReadable()) {
             throw new FileNotFoundException("File content not found for id: " + fileId);
         }
 
-        Resource resource = toResource(filePath);
         MediaType mediaType = metadata.contentType() != null
                 ? MediaType.parseMediaType(metadata.contentType())
                 : MediaType.APPLICATION_OCTET_STREAM;
 
         return new StoredFileResource(resource, metadata.originalFileName(), mediaType);
+    }
+
+    /** Removes the file and its metadata. Used by submission-service to clean up after a failed submit. */
+    public void delete(UUID fileId) throws IOException {
+        Path fileDirectory = filesRoot.resolve(fileId.toString());
+        if (!FileSystemUtils.deleteRecursively(fileDirectory)) {
+            throw new FileNotFoundException("File not found: " + fileId);
+        }
     }
 
     private StoredFileMetadata readMetadata(UUID fileId) throws IOException {
@@ -82,14 +90,6 @@ public class FileStoreService {
             throw new FileNotFoundException("File not found: " + fileId);
         }
         return objectMapper.readValue(metadataPath.toFile(), StoredFileMetadata.class);
-    }
-
-    private static Resource toResource(Path filePath) throws MalformedURLException {
-        Resource resource = new UrlResource(filePath.toUri());
-        if (!resource.exists() || !resource.isReadable()) {
-            throw new FileNotFoundException("Unreadable file: " + filePath);
-        }
-        return resource;
     }
 
     private static String sanitizeFileName(String fileName) {

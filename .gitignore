@@ -47,3 +47,7 @@ storage/
 web-ui/reports/submission/
 web-ui/reports/files/
 web-ui/reports/analysis/
+web-ui/reports/gateway/
+web-ui/reports/file-validation/
+### IntelliJ IDEA (whole folder) ###
+.idea/

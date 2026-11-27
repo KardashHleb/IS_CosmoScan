@@ -2,7 +2,7 @@ package com.cosmoscan.submission.api;
 
 import com.cosmoscan.submission.api.dto.WorkResponse;
 import com.cosmoscan.submission.service.WorkSubmissionService;
-import com.cosmoscan.submission.validation.AllowedFileValidator;
+import com.cosmoscan.filevalidation.AllowedFileValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

@@ -1,0 +1,31 @@
+// End-to-end API tests. They need a running stack (docker compose up) and are NOT part of
+// `./gradlew build` / `check`: the regular `test` task is disabled, so the sources are only compiled.
+//
+// Run:  ./gradlew :e2e-tests:e2eTest
+//       ./gradlew :e2e-tests:e2eTest -Pcosmoscan.baseUrl=http://my-host:8090
+
+dependencies {
+    testImplementation 'io.rest-assured:rest-assured'
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.hamcrest:hamcrest'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    enabled = false
+}
+
+tasks.register('e2eTest', Test) {
+    description = 'Runs end-to-end API tests against a running CosmoScan stack.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform()
+    systemProperty 'cosmoscan.baseUrl', findProperty('cosmoscan.baseUrl') ?: 'http://localhost:8090'
+    outputs.upToDateWhen { false }
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+        exceptionFormat 'full'
+    }
+}

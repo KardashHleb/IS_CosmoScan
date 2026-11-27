@@ -1,39 +1,40 @@
 /**
- * CosmoScan — скрипты для вкладки Tests в Postman.
+ * CosmoScan - scripts for the Postman "Tests" tab.
  *
- * Как использовать:
- * 1. Создайте Collection «CosmoScan».
- * 2. Variables коллекции (Initial / Current):
+ * This file is not a collection. Each block below is pasted into the Tests tab of one request.
+ * Full setup instructions: postman/README.md.
+ *
+ * Collection variables (Initial / Current value):
  *    - gatewayUrl     = http://localhost:8090
  *    - submissionUrl  = http://localhost:8091
  *    - fileStoringUrl = http://localhost:8092
  *    - analysisUrl    = http://localhost:8093
- *    - workId         = (пусто, заполнится после Submit work)
- *    - fileId         = (пусто, заполнится после Upload / Submit)
- *    - reportId       = (пусто, опционально)
- * 3. docker compose up должен быть запущен.
- * 4. Скопируйте блок Tests нужного запроса во вкладку Tests соответствующего request.
+ *    - workId         = (empty, set by "Submit work")
+ *    - fileId         = (empty, set by "Upload file" / "Submit work")
+ *    - reportId       = (empty, optional)
  *
- * Рекомендуемый порядок запуска (Collection Runner): сверху вниз по папкам.
+ * The stack must be running (docker compose up).
+ * Recommended order in the Collection Runner: folders from top to bottom.
  */
 
 // =============================================================================
-// ПАПКА: API Gateway (публичный клиентский доступ, порт 8090)
+// FOLDER: API Gateway (public client access, port 8090)
 // =============================================================================
 
 // -----------------------------------------------------------------------------
-// 1. POST {{gatewayUrl}}/works — Submit work (полный сценарий)
+// 1. POST {{gatewayUrl}}/works - Submit work (full scenario)
 // -----------------------------------------------------------------------------
 /*
- * Шаги в Postman:
- * - New Request → имя: «Gateway — Submit work»
+ * Request:
+ * - Name: "Gateway - Submit work"
  * - Method: POST
  * - URL: {{gatewayUrl}}/works
- * - Body → form-data:
+ * - Body -> form-data:
  *     studentFullName (Text) = Ivan Ivanov
- *     file (File)            = выберите test.pdf / test.docx / test.txt (≤ 1 MiB)
- * - Вкладка Tests → вставьте скрипт ниже (блок «Submit work»).
- * - Сохраните в папку «API Gateway».
+ *     file (File)            = a .pdf / .docx / .txt file up to 1 MiB
+ *                              (e.g. e2e-tests/src/test/resources/files/cosmos-notes.txt)
+ * - Tests tab: block "Submit work (Gateway)" below.
+ * - Save to the "API Gateway" folder.
  */
 // --- Submit work (Gateway) ---
 pm.test("Status is 201 Created", function () {
@@ -69,16 +70,16 @@ if (submitBody.technicalReport && submitBody.technicalReport.id) {
 }
 
 // -----------------------------------------------------------------------------
-// 2. GET {{gatewayUrl}}/works/{{workId}}/reports — List reports
+// 2. GET {{gatewayUrl}}/works/{{workId}}/reports - List reports
 // -----------------------------------------------------------------------------
 /*
- * Шаги в Postman:
- * - New Request → «Gateway — Get reports by workId»
+ * Request:
+ * - Name: "Gateway - Get reports by workId"
  * - Method: GET
  * - URL: {{gatewayUrl}}/works/{{workId}}/reports
- *   (workId появится после успешного Submit work)
- * - Tests → скрипт «Get reports (Gateway)».
- * - Запускайте после Submit work.
+ *   (workId is set by a successful "Submit work")
+ * - Tests tab: block "Get reports (Gateway)".
+ * - Run after "Submit work".
  */
 // --- Get reports (Gateway) ---
 pm.test("Status is 200 OK", function () {
@@ -108,15 +109,15 @@ if (reports.length > 0) {
 }
 
 // -----------------------------------------------------------------------------
-// 2b. GET {{gatewayUrl}}/works/{{workId}}/word-cloud — Word cloud data
+// 2b. GET {{gatewayUrl}}/works/{{workId}}/word-cloud - Word cloud data
 // -----------------------------------------------------------------------------
 /*
- * Шаги в Postman:
- * - New Request → «Gateway — Get word cloud by workId»
+ * Request:
+ * - Name: "Gateway - Get word cloud by workId"
  * - Method: GET
  * - URL: {{gatewayUrl}}/works/{{workId}}/word-cloud
- * - Tests → скрипт «Get word cloud (Gateway)».
- * - Запускайте после Submit work.
+ * - Tests tab: block "Get word cloud (Gateway)".
+ * - Run after "Submit work".
  */
 // --- Get word cloud (Gateway) ---
 pm.test("Status is 200 OK", function () {
@@ -144,16 +145,16 @@ pm.test("READY cloud has weighted terms", function () {
 });
 
 // -----------------------------------------------------------------------------
-// 3. POST {{gatewayUrl}}/files — Upload file
+// 3. POST {{gatewayUrl}}/files - Upload file
 // -----------------------------------------------------------------------------
 /*
- * Шаги в Postman:
- * - New Request → «Gateway — Upload file»
+ * Request:
+ * - Name: "Gateway - Upload file"
  * - Method: POST
  * - URL: {{gatewayUrl}}/files
- * - Body → form-data:
- *     file (File) = test.txt
- * - Tests → скрипт «Upload file (Gateway)».
+ * - Body -> form-data:
+ *     file (File) = postman/files/cyrillic-and-latin.txt
+ * - Tests tab: block "Upload file (Gateway)".
  */
 // --- Upload file (Gateway) ---
 pm.test("Status is 201 Created", function () {
@@ -171,15 +172,15 @@ pm.test("Stored file metadata is returned", function () {
 pm.collectionVariables.set("fileId", uploaded.fileId);
 
 // -----------------------------------------------------------------------------
-// 4. GET {{gatewayUrl}}/files/{{fileId}} — Download file
+// 4. GET {{gatewayUrl}}/files/{{fileId}} - Download file
 // -----------------------------------------------------------------------------
 /*
- * Шаги в Postman:
- * - New Request → «Gateway — Download file»
+ * Request:
+ * - Name: "Gateway - Download file"
  * - Method: GET
  * - URL: {{gatewayUrl}}/files/{{fileId}}
- * - Tests → скрипт «Download file (Gateway)».
- * - Send and Download: в Postman ответ может быть файлом, не JSON.
+ * - Tests tab: block "Download file (Gateway)".
+ * - The response is a file, not JSON ("Send and Download" saves it).
  */
 // --- Download file (Gateway) ---
 pm.test("Status is 200 OK", function () {
@@ -195,58 +196,74 @@ pm.test("Body is not empty", function () {
 });
 
 // =============================================================================
-// ПАПКА: Submission Service (прямой доступ, порт 8091)
+// FOLDER: Submission Service (direct access, port 8091)
 // =============================================================================
 
 // -----------------------------------------------------------------------------
-// 5. POST {{submissionUrl}}/works — Submit work (direct)
+// 5. POST {{submissionUrl}}/works - Submit work (direct)
 // -----------------------------------------------------------------------------
 /*
- * Шаги в Postman:
- * - Папка «Submission Service (8091)»
- * - Дублируйте запрос Submit work, URL: {{submissionUrl}}/works
- * - Тот же form-data, что и для Gateway.
- * - Tests → скрипт «Submit work (Gateway)» (тот же блок, что в п.1).
+ * Request:
+ * - Folder "Submission Service (8091)"
+ * - Duplicate "Submit work", URL: {{submissionUrl}}/works
+ * - Same form-data as for the gateway.
+ * - Tests tab: block "Submit work (Gateway)" (same as step 1).
  */
-// Используйте блок «Submit work (Gateway)» выше.
+// Use the "Submit work (Gateway)" block above.
 
 // =============================================================================
-// ПАПКА: File Storing Service (прямой доступ, порт 8092)
+// FOLDER: File Storing Service (direct access, port 8092)
 // =============================================================================
 
 // -----------------------------------------------------------------------------
-// 6. POST {{fileStoringUrl}}/files — Upload file (direct)
+// 6. POST {{fileStoringUrl}}/files - Upload file (direct)
 // -----------------------------------------------------------------------------
 /*
- * Шаги в Postman:
- * - Папка «File Storing Service (8092)»
+ * Request:
+ * - Folder "File Storing Service (8092)"
  * - POST {{fileStoringUrl}}/files, form-data file
- * - Tests → «Upload file (Gateway)» (тот же скрипт, что в п.3).
+ * - Tests tab: block "Upload file (Gateway)" (same as step 3).
  */
 
 // -----------------------------------------------------------------------------
-// 7. GET {{fileStoringUrl}}/files/{{fileId}} — Download file (direct)
+// 7. GET {{fileStoringUrl}}/files/{{fileId}} - Download file (direct)
 // -----------------------------------------------------------------------------
 /*
- * Шаги в Postman:
+ * Request:
  * - GET {{fileStoringUrl}}/files/{{fileId}}
- * - Tests → «Download file (Gateway)» (тот же скрипт, что в п.4).
+ * - Tests tab: block "Download file (Gateway)" (same as step 4).
  */
 
+// -----------------------------------------------------------------------------
+// 7b. DELETE {{fileStoringUrl}}/internal/files/{{fileId}} - Delete file (internal)
+// -----------------------------------------------------------------------------
+/*
+ * Request:
+ * - DELETE {{fileStoringUrl}}/internal/files/{{fileId}}
+ * - Tests tab: block "Delete file (internal)".
+ * - Run it last for this fileId: after it the file is gone.
+ * - Note: submission-service calls this endpoint when a submit fails after the upload.
+ *   It is not available through the gateway (by design).
+ */
+// --- Delete file (internal) ---
+pm.test("Status is 204 No Content", function () {
+    pm.response.to.have.status(204);
+});
+
 // =============================================================================
-// ПАПКА: Analysis Service (прямой доступ, порт 8093)
+// FOLDER: Analysis Service (direct access, port 8093)
 // =============================================================================
 
 // -----------------------------------------------------------------------------
-// 8. POST {{analysisUrl}}/internal/analysis — Run analysis (internal)
+// 8. POST {{analysisUrl}}/internal/analysis - Run analysis (internal)
 // -----------------------------------------------------------------------------
 /*
- * Шаги в Postman:
- * - Папка «Analysis Service (8093)»
+ * Request:
+ * - Folder "Analysis Service (8093)"
  * - Method: POST
  * - URL: {{analysisUrl}}/internal/analysis
  * - Headers: Content-Type = application/json
- * - Body → raw → JSON (подставьте реальные UUID после Submit work):
+ * - Body -> raw -> JSON (workId and fileId come from "Submit work"):
  *   {
  *     "workId": "{{workId}}",
  *     "fileId": "{{fileId}}",
@@ -255,8 +272,8 @@ pm.test("Body is not empty", function () {
  *     "contentType": "text/plain",
  *     "fileSizeBytes": 20
  *   }
- * - Tests → скрипт «Internal analysis».
- * - Примечание: через Gateway этот endpoint недоступен (by design).
+ * - Tests tab: block "Internal analysis".
+ * - Note: this endpoint is not available through the gateway (by design).
  */
 // --- Internal analysis ---
 pm.test("Status is 201 Created", function () {
@@ -276,26 +293,28 @@ pm.test("Report has required fields", function () {
 pm.collectionVariables.set("reportId", report.id);
 
 // -----------------------------------------------------------------------------
-// 9. GET {{analysisUrl}}/works/{{workId}}/reports — List reports (direct)
+// 9. GET {{analysisUrl}}/works/{{workId}}/reports - List reports (direct)
 // -----------------------------------------------------------------------------
 /*
- * Шаги в Postman:
+ * Request:
  * - GET {{analysisUrl}}/works/{{workId}}/reports
- * - Tests → «Get reports (Gateway)» (тот же скрипт, что в п.2).
+ * - Tests tab: block "Get reports (Gateway)" (same as step 2).
  */
 
 // =============================================================================
-// ПАПКА: Негативные сценарии (опционально, Gateway)
+// FOLDER: Negative scenarios (optional, gateway)
 // =============================================================================
 
 // -----------------------------------------------------------------------------
-// 10. POST {{gatewayUrl}}/works — Invalid file (zip or > 1 MiB)
+// 10. POST {{gatewayUrl}}/works - Invalid file (zip, blank name)
 // -----------------------------------------------------------------------------
 /*
- * Шаги в Postman:
+ * Request:
  * - POST {{gatewayUrl}}/works
- * - form-data: studentFullName + file.zip (или файл > 1 MB)
- * - Tests → скрипт «Invalid file upload».
+ * - form-data: studentFullName + postman/files/archive.zip
+ *   (or a valid file with studentFullName set to spaces only)
+ * - Tests tab: block "Invalid file upload".
+ * - A file over 1 MiB may be rejected with 413 by the upload size limit instead of 400.
  */
 // --- Invalid file upload ---
 pm.test("Status is 400 Bad Request", function () {
@@ -311,12 +330,12 @@ pm.test("Error body is present", function () {
 });
 
 // -----------------------------------------------------------------------------
-// 11. GET {{gatewayUrl}}/files/00000000-0000-0000-0000-000000000000 — Not found
+// 11. GET {{gatewayUrl}}/files/00000000-0000-0000-0000-000000000000 - Not found
 // -----------------------------------------------------------------------------
 /*
- * Шаги в Postman:
+ * Request:
  * - GET {{gatewayUrl}}/files/00000000-0000-0000-0000-000000000000
- * - Tests → скрипт «File not found».
+ * - Tests tab: block "File not found".
  */
 // --- File not found ---
 pm.test("Status is 404 Not Found", function () {

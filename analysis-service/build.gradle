@@ -1,6 +1,7 @@
 def tikaVersion = '2.9.2'
 
 dependencies {
+    implementation project(':file-validation')
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation "org.apache.tika:tika-core:${tikaVersion}"
     implementation "org.apache.tika:tika-parsers-standard-package:${tikaVersion}"

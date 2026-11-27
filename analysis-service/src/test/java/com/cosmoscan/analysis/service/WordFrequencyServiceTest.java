@@ -40,4 +40,30 @@ class WordFrequencyServiceTest {
     void topTerms_blankText_returnsEmptyList() {
         assertThat(service.topTerms("   ")).isEmpty();
     }
+
+    @Test
+    void topTerms_nullText_returnsEmptyList() {
+        assertThat(service.topTerms(null)).isEmpty();
+    }
+
+    @Test
+    void topTerms_dropsShortWordsAndStopWords() {
+        List<WordFrequencyService.WeightedTerm> terms = service.topTerms("go to it with orbit");
+
+        assertThat(terms).extracting(WordFrequencyService.WeightedTerm::text).containsExactly("orbit");
+    }
+
+    @Test
+    void topTerms_equalWeights_areSortedAlphabeticallyAndLimited() {
+        List<WordFrequencyService.WeightedTerm> terms = service.topTerms("zeta beta alpha", 2);
+
+        assertThat(terms).extracting(WordFrequencyService.WeightedTerm::text).containsExactly("alpha", "beta");
+    }
+
+    @Test
+    void topTerms_normalizesCyrillicYoToYe() {
+        List<WordFrequencyService.WeightedTerm> terms = service.topTerms("ёлка елка");
+
+        assertThat(terms).containsExactly(new WordFrequencyService.WeightedTerm("елка", 2));
+    }
 }
