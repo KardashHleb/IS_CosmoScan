@@ -127,8 +127,9 @@ Built in **analysis-service** during the same analyze call:
 
 - The file is downloaded from file-storing.
 - Text is extracted with **Apache Tika 2.9.2** (Apache-2.0 license).
-- Word frequencies are counted by the project's own **WordFrequencyService** (English and Russian
-  stop words, minimum word length 3).
+- Word frequencies are counted by the project's own **WordFrequencyService** (English stop words,
+  minimum word length 3; words in any alphabet are counted, but stop words are filtered only for
+  English).
 - Results are stored in the `work_word_clouds` / `work_word_cloud_terms` tables.
 - Statuses: `READY`, `NO_TEXT`, `FAILED` (an extraction error does not cancel the submission).
 

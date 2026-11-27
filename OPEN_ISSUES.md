@@ -265,16 +265,19 @@ ignored) or Docker secrets; keep the local defaults only for development profile
 
 **Area:** Domain | **Priority:** Low
 
-**Current state.** `WordFrequencyService` counts exact lower-case word forms with small English and
-Russian stop word lists. Inflected forms ("orbit", "orbits"; Russian case endings) are counted as
-different words, and other languages get no stop words.
+**Current state.** `WordFrequencyService` counts exact lower-case word forms with a small English
+stop word list. Inflected forms ("orbit", "orbits") are counted as different words, and texts in
+other languages are counted without any stop words, so their most frequent words are usually
+prepositions and conjunctions.
 
 **Proposed approach.**
-- Add stemming or lemmatization (Apache Lucene analyzers: `EnglishAnalyzer`, `RussianAnalyzer`).
-- Detect the document language (Tika `LanguageDetector`) and pick the analyzer and stop words.
+- Add stemming or lemmatization (Apache Lucene analyzers such as `EnglishAnalyzer`, one per
+  supported language).
+- Detect the document language (Tika `LanguageDetector`) and pick the analyzer and its stop words.
 - Make the number of terms and the minimum word length configurable.
 
-**Done when.** Different forms of one word are merged in the cloud for English and Russian texts.
+**Done when.** Different forms of one word are merged in the cloud, and the supported languages
+have stop word filtering.
 
 ---
 

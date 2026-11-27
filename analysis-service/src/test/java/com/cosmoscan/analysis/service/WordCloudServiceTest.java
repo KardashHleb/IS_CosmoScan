@@ -155,7 +155,7 @@ class WordCloudServiceTest {
                 UUID.randomUUID(),
                 Instant.parse("2026-05-17T12:00:00Z"),
                 WordCloudStatus.READY,
-                List.of(new WordCloudTerm("космос", 5))
+                List.of(new WordCloudTerm("cosmos", 5))
         );
         when(wordCloudRepository.findByWorkId(workId)).thenReturn(Optional.of(entity));
 
@@ -164,7 +164,7 @@ class WordCloudServiceTest {
         assertThat(response.workId()).isEqualTo(workId);
         assertThat(response.status()).isEqualTo(WordCloudStatus.READY);
         assertThat(response.terms()).hasSize(1);
-        assertThat(response.terms().get(0).text()).isEqualTo("космос");
+        assertThat(response.terms().get(0).text()).isEqualTo("cosmos");
         assertThat(response.terms().get(0).weight()).isEqualTo(5);
     }
 }

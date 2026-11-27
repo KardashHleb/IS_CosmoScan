@@ -153,7 +153,7 @@ pm.test("READY cloud has weighted terms", function () {
  * - Method: POST
  * - URL: {{gatewayUrl}}/files
  * - Body -> form-data:
- *     file (File) = postman/files/cyrillic-and-latin.txt
+ *     file (File) = postman/files/word-cloud-sample.txt
  * - Tests tab: block "Upload file (Gateway)".
  */
 // --- Upload file (Gateway) ---

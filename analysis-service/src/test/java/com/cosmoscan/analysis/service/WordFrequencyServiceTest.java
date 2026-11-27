@@ -25,15 +25,15 @@ class WordFrequencyServiceTest {
     }
 
     @Test
-    void topTerms_supportsCyrillic() {
-        String text = "космос космос орбита звезды звезды звезды";
+    void topTerms_supportsNonAsciiLetters() {
+        String text = "Café café CAFÉ naïve naïve résumé";
 
         List<WordFrequencyService.WeightedTerm> terms = service.topTerms(text, 5);
 
-        assertThat(terms.get(0).text()).isEqualTo("звезды");
-        assertThat(terms.get(0).weight()).isEqualTo(3);
-        assertThat(terms).extracting(WordFrequencyService.WeightedTerm::text)
-                .contains("космос", "орбита");
+        assertThat(terms).containsExactly(
+                new WordFrequencyService.WeightedTerm("café", 3),
+                new WordFrequencyService.WeightedTerm("naïve", 2),
+                new WordFrequencyService.WeightedTerm("résumé", 1));
     }
 
     @Test
@@ -58,12 +58,5 @@ class WordFrequencyServiceTest {
         List<WordFrequencyService.WeightedTerm> terms = service.topTerms("zeta beta alpha", 2);
 
         assertThat(terms).extracting(WordFrequencyService.WeightedTerm::text).containsExactly("alpha", "beta");
-    }
-
-    @Test
-    void topTerms_normalizesCyrillicYoToYe() {
-        List<WordFrequencyService.WeightedTerm> terms = service.topTerms("ёлка елка");
-
-        assertThat(terms).containsExactly(new WordFrequencyService.WeightedTerm("елка", 2));
     }
 }

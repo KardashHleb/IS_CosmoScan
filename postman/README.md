@@ -13,7 +13,7 @@ The repository does **not** contain a Postman collection export. It contains:
 | File | Purpose |
 |---|---|
 | `cosmoscan-api-tests.js` | Test scripts. Each block is pasted into the **Tests** tab of one request |
-| `files/cyrillic-and-latin.txt` | Text with Cyrillic and Latin words, to see a mixed-language word cloud |
+| `files/word-cloud-sample.txt` | Text with a few clearly dominant words ("java", "test"), to see a word cloud |
 | `files/archive.zip` | ZIP archive for the negative "invalid file" request |
 
 More valid sample files (`.txt`, `.docx`, `.pdf`) are in `e2e-tests/src/test/resources/files/`.
