@@ -681,6 +681,9 @@ Manual checks with Postman test scripts: see [postman/README.md](postman/README.
 
 ## Known limitations
 
+The main ones are listed below. All known gaps, with proposed approaches, are described in
+[OPEN_ISSUES.md](OPEN_ISSUES.md).
+
 - **No authentication or authorization.** Every public endpoint is open; internal endpoints are
   protected only by not being routed through the gateway. The services' own ports (8091-8093) are
   published by Compose for debugging, so internal endpoints are reachable on those ports.
@@ -760,6 +763,7 @@ CosmoScan/
 │   ├── nginx.conf
 │   ├── Dockerfile
 │   └── reports/
+├── OPEN_ISSUES.md            known gaps and proposed approaches
 ├── postman/
 │   ├── README.md
 │   ├── cosmoscan-api-tests.js
