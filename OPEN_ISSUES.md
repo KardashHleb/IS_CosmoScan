@@ -109,7 +109,7 @@ Compose health checks have not been verified by a build.
   - job `e2e` (needs `build`): `docker compose up --build -d --wait`, then
     `./gradlew :e2e-tests:e2eTest`, upload test reports and `docker compose logs` on failure,
     `docker compose down -v` at the end.
-- Make both jobs required checks for `master`.
+- Make both jobs required checks for `main`.
 
 **Done when.** Every pull request shows a green `build` and `e2e` check, and a broken Dockerfile or
 failing e2e test blocks the merge.
