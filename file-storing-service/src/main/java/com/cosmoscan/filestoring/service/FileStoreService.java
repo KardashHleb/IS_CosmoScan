@@ -3,7 +3,7 @@ package com.cosmoscan.filestoring.service;
 import com.cosmoscan.filestoring.api.dto.StoredFileResponse;
 import com.cosmoscan.filestoring.config.StorageProperties;
 import com.cosmoscan.filestoring.domain.StoredFileMetadata;
-import com.cosmoscan.filestoring.validation.AllowedFileValidator;
+import com.cosmoscan.filevalidation.AllowedFileValidator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
