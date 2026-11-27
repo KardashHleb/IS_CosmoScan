@@ -99,7 +99,7 @@ configurations {
 }
 
 dependencies {
-    plantuml 'net.sourceforge.plantuml:plantuml:1.2024.7'
+    plantuml 'net.sourceforge.plantuml:plantuml-mit:1.2024.7'
 }
 
 tasks.register('renderDiagrams', JavaExec) {

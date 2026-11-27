@@ -1,31 +1,33 @@
 # CosmoScan
 
-Система приёма и первичной обработки студенческих работ: загрузка файла, техническая проверка, формирование отчёта и данных для визуализации в виде облака слов.
+A system for receiving and pre-processing student works: file upload, technical check, report
+generation and word cloud data for visualization.
 
 ---
 
-## Содержание
+## Contents
 
-- [Архитектура](#архитектура)
-- [Подробное описание проделанной работы](#подробное-описание-проделанной-работы)
-- [Пользовательские сценарии](#пользовательские-сценарии)
-- [Технические сценарии взаимодействия сервисов](#технические-сценарии-взаимодействия-сервисов)
-- [Модели данных](#модели-данных)
-- [Публичное API (через Gateway)](#публичное-api-через-gateway)
-- [Сборка и зависимости](#сборка-и-зависимости)
-- [Запуск и проверка](#запуск-и-проверка)
-- [Веб-портал (web-ui)](#веб-портал-web-ui)
-- [Тестирование](#тестирование)
-- [Зависимости и лицензии](#зависимости-и-лицензии)
-- [Структура репозитория](#структура-репозитория)
+- [Architecture](#architecture)
+- [What the system does](#what-the-system-does)
+- [User scenarios](#user-scenarios)
+- [Service interaction scenarios](#service-interaction-scenarios)
+- [Data models](#data-models)
+- [Public API (through the gateway)](#public-api-through-the-gateway)
+- [Build and dependencies](#build-and-dependencies)
+- [Running and checking](#running-and-checking)
+- [Web portal (web-ui)](#web-portal-web-ui)
+- [Testing](#testing)
+- [Known limitations](#known-limitations)
+- [Dependencies and licenses](#dependencies-and-licenses)
+- [Repository structure](#repository-structure)
 
 ---
 
-## Архитектура
+## Architecture
 
 ```mermaid
 flowchart TB
-    Client[Клиент / Postman]
+    Client[Client / Postman]
     UI[web-ui :8094]
     GW[API Gateway :8090]
 
@@ -35,8 +37,8 @@ flowchart TB
 
     SUBDB[(PostgreSQL submission :5433)]
     ANADB[(PostgreSQL analysis :5434)]
-    FSDISK[(Файловое хранилище)]
-    RPTDISK[(Отчёты на диске)]
+    FSDISK[(File storage)]
+    RPTDISK[(Reports on disk)]
 
     Client --> GW
     UI -->|fetch API| GW
@@ -47,6 +49,7 @@ flowchart TB
 
     SUB --> SUBDB
     SUB -->|store file| FS
+    SUB -->|"DELETE /internal/files/{id} (on failure)"| FS
     SUB -->|POST /internal/analysis| ANA
 
     ANA --> ANADB
@@ -55,99 +58,125 @@ flowchart TB
     FS --> FSDISK
 ```
 
-| Сервис | Порт | Назначение |
-|--------|------|------------|
-| **web-ui** | 8094 | Статический портал (nginx): сценарии UC-1–UC-3, ссылки Swagger/health/JaCoCo |
-| **gateway** | 8090 | Единая точка входа API, маршрутизация |
-| **submission-service** | 8091 | Приём работ, метаданные в БД |
-| **file-storing-service** | 8092 | Хранение файлов на диске |
-| **analysis-service** | 8093 | Техпроверка, отчёты, облако слов |
-| **submission-db** | 5433 | БД работ |
-| **analysis-db** | 5434 | БД отчётов и word cloud |
+| Service | Port | Purpose |
+|---------|------|---------|
+| **web-ui** | 8094 | Static portal (nginx): scenarios UC-1 to UC-3, links to Swagger, health and JaCoCo |
+| **gateway** | 8090 | Single API entry point, routing |
+| **submission-service** | 8091 | Receives works, stores work metadata in its database |
+| **file-storing-service** | 8092 | Stores files on disk |
+| **analysis-service** | 8093 | Technical check, reports, word cloud |
+| **submission-db** | 5433 | Works database |
+| **analysis-db** | 5434 | Reports and word cloud database |
 
-Внутренний эндпоинт `POST /internal/analysis` **не** проксируется через Gateway — к нему обращается только `submission-service`.
+The internal endpoints `POST /internal/analysis` (analysis-service) and
+`DELETE /internal/files/{fileId}` (file-storing-service) are **not** routed by the gateway; only
+submission-service calls them.
 
 ---
 
-## Подробное описание проделанной работы
+## What the system does
 
-### 1. Микросервисная декомпозиция
+### 1. Microservice decomposition
 
-Проект разделён на четыре исполняемых модуля Gradle:
+The project consists of four runnable Gradle modules and two supporting ones:
 
-- **gateway** — Spring Cloud Gateway, маршруты к сервисам, Swagger UI по префиксам `/swagger/{service}/`.
-- **submission-service** — REST API приёма работ (`multipart/form-data`), JPA + Flyway, PostgreSQL.
-- **file-storing-service** — загрузка и скачивание файлов, валидация формата и размера, хранение в каталоге на диске.
-- **analysis-service** — технический анализ, сохранение отчётов в БД и JSON на диск, построение данных word cloud.
+- **gateway** - Spring Cloud Gateway: routes to the services, Swagger UI under `/swagger/{service}/`,
+  Actuator health endpoint.
+- **submission-service** - REST API for submitting works (`multipart/form-data`), JPA + Flyway,
+  PostgreSQL.
+- **file-storing-service** - file upload, download and internal delete; format and size
+  validation; files are stored in a directory on disk.
+- **analysis-service** - technical check, reports in the database and as JSON on disk, word cloud
+  data.
+- **file-validation** - plain Java library with the file rules (allowed formats, size limit, ZIP
+  ban) shared by the three services. Before it existed, the same validator was copied into
+  submission-service and file-storing-service.
+- **e2e-tests** - end-to-end API tests that run against a running stack (see [Testing](#testing)).
 
-Каждый модуль имеет свой `Dockerfile` и конфигурацию в `docker-compose.yml`. Health-check (`/actuator/health`) в Compose настроен для **submission-service**, **file-storing-service** и **analysis-service** (Spring Actuator). **Gateway** не использует Actuator и в Compose health-check не имеет.
+Every runnable module has its own `Dockerfile` and a service in `docker-compose.yml`. All
+application containers have a Compose health check: the Spring services and the gateway use
+`/actuator/health`, web-ui is checked with an HTTP request to nginx. Containers start in
+`depends_on` order and wait for their dependencies to become `healthy`.
 
-### 2. Сквозной сценарий «Сдать работу»
+### 2. End-to-end "Submit work" flow
 
-При `POST /works` выполняется цепочка:
+`POST /works` runs this chain:
 
-1. Валидация файла (расширение `pdf` / `docx` / `txt`, максимум **1 MB**, запрет ZIP).
-2. Сохранение файла в **file-storing-service** → получение `fileId`.
-3. Запись метаданных работы в **submission-db** (`workId`, ФИО студента, `fileId`, имя файла, размер, content-type).
-4. Синхронный вызов **analysis-service** (`POST /internal/analysis`).
-5. В ответ клиенту — `WorkResponse` с кратким техническим отчётом.
+1. File validation (extension `pdf` / `docx` / `txt`, at most **1 MiB**, no ZIP).
+2. The file is stored in **file-storing-service**, which returns a `fileId`.
+3. Work metadata is written to **submission-db** (`workId`, student name, `fileId`, file name, size,
+   content type).
+4. Synchronous call to **analysis-service** (`POST /internal/analysis`).
+5. The client receives a `WorkResponse` with a short technical report.
 
-### 3. Технический анализ (analysis-service)
+If step 3 or 4 fails, the work row is rolled back by the transaction and submission-service deletes
+the already stored file (`DELETE /internal/files/{fileId}`), so no orphan file is left behind. The
+original error is returned to the client.
 
-- Проверка существования файла в file-storing (`GET /files/{fileId}`).
-- **TechnicalCheckService** — проверка метаданных: размер, расширение, content-type (без чтения содержимого).
-- Статусы отчёта: `ACCEPTED` / `NEEDS_REVISION` + список замечаний (`remarks`).
-- Сохранение отчёта в PostgreSQL и дублирование в JSON-файл (`ReportFileWriter`).
+### 3. Technical analysis (analysis-service)
 
-### 4. Облако слов (word cloud)
+- Checks that the file exists in file-storing (`GET /files/{fileId}`).
+- **TechnicalCheckService** checks the metadata (size, extension, content type) against the shared
+  file rules, without reading the content.
+- Report statuses: `ACCEPTED` / `NEEDS_REVISION`, plus a list of `remarks`.
+- The report is saved in PostgreSQL and also written as a JSON file (`ReportFileWriter`).
 
-Реализовано в **analysis-service** при том же вызове analyze:
+### 4. Word cloud
 
-- Скачивание файла из file-storing.
-- Извлечение текста — **Apache Tika 2.9.2** (лицензия Apache-2.0).
-- Подсчёт частот слов — собственный **WordFrequencyService** .
-- Сохранение в таблицы `work_word_clouds` / `work_word_cloud_terms`.
-- Статусы: `READY`, `NO_TEXT`, `FAILED` (ошибка извлечения не отменяет приём работы).
+Built in **analysis-service** during the same analyze call:
 
-Публичное чтение: `GET /works/{workId}/word-cloud` — JSON с массивом `{ "text", "weight" }` для отрисовки на клиенте (например wordcloud2.js).
+- The file is downloaded from file-storing.
+- Text is extracted with **Apache Tika 2.9.2** (Apache-2.0 license).
+- Word frequencies are counted by the project's own **WordFrequencyService** (English and Russian
+  stop words, minimum word length 3).
+- Results are stored in the `work_word_clouds` / `work_word_cloud_terms` tables.
+- Statuses: `READY`, `NO_TEXT`, `FAILED` (an extraction error does not cancel the submission).
+
+Public read: `GET /works/{workId}/word-cloud` returns JSON with a `{ "text", "weight" }` array for
+client-side rendering (for example with wordcloud2.js).
 
 ### 5. API Gateway
 
-Маршрутизация публичных запросов на порт **8090**:
+Routes public requests on port **8090**:
 
-- `POST /works` → submission-service
-- `GET /works/{workId}/reports` → analysis-service
-- `GET /works/{workId}/word-cloud` → analysis-service
-- `POST /files`, `GET /files/{fileId}` → file-storing-service
+- `POST /works` -> submission-service
+- `GET /works/{workId}/reports` -> analysis-service
+- `GET /works/{workId}/word-cloud` -> analysis-service
+- `POST /files`, `GET /files/{fileId}` -> file-storing-service
+- `GET /actuator/health` - the gateway's own health
 
-### 6. Качество и документация API
+### 6. Quality and API documentation
 
-- **OpenAPI (springdoc)** на каждом сервисе.
-- **Postman** — скрипты проверок в `postman/cosmoscan-api-tests.js`.
-- **JaCoCo** — минимум **60%** покрытия строк для `submission-service`, `file-storing-service`, `analysis-service` (задача `check`).
-- **web-ui** — одностраничный портал (HTML/CSS/JS + nginx в Docker); визуализация word cloud на клиенте через **wordcloud2.js** (данные считает **analysis-service** в Java).
+- **OpenAPI (springdoc)** on every service.
+- **Unit tests** with a JaCoCo gate of **100%** instructions, lines and branches for gateway,
+  submission-service, file-storing-service, analysis-service and file-validation (`check` task).
+- **End-to-end API tests** in `e2e-tests/` (JUnit 5 + REST Assured) against the gateway.
+- **Postman** test scripts in `postman/`, described in [postman/README.md](postman/README.md).
+- **web-ui** - single-page portal (HTML/CSS/JS + nginx in Docker); the word cloud is drawn in the
+  browser with **wordcloud2.js**, the terms are computed by **analysis-service** in Java.
 
 ---
 
-## Пользовательские сценарии
+## User scenarios
 
-### UC-1. Студент сдаёт работу
+### UC-1. A student submits a work
 
-**Актор:** студент (или внешняя система)  
-**Цель:** загрузить работу и сразу узнать результат техпроверки.
+**Actor:** student (or an external system)
+**Goal:** upload a work and immediately get the technical check result.
 
-| Шаг | Действие |
-|-----|----------|
-| 1 | Клиент отправляет `POST /works` на Gateway (`studentFullName` + файл). |
-| 2 | Система валидирует файл и сохраняет его. |
-| 3 | Система запускает анализ. |
-| 4 | Клиент получает `201` с `id` работы, `fileId` и блоком `technicalReport` (`status`, `remarks`). |
+| Step | Action |
+|------|--------|
+| 1 | The client sends `POST /works` to the gateway (`studentFullName` + file). |
+| 2 | The system validates and stores the file. |
+| 3 | The system runs the analysis. |
+| 4 | The client receives `201` with the work `id`, `fileId` and a `technicalReport` block (`status`, `remarks`). |
 
-**Результат:** работа зарегистрирована; при `NEEDS_REVISION` в `remarks` указаны причины (размер, формат и т.д.).
+**Result:** the work is registered; with `NEEDS_REVISION` the `remarks` list the reasons (size,
+format and so on).
 
 ```mermaid
 sequenceDiagram
-    actor Student as Студент
+    actor Student
     participant GW as Gateway
     participant SUB as submission-service
     participant FS as file-storing
@@ -162,64 +191,72 @@ sequenceDiagram
     ANA->>FS: GET /files/{fileId}
     ANA->>ANA: technical check + word cloud
     ANA-->>SUB: TechnicalReportResponse
-    SUB-->>GW: WorkResponse
-    GW-->>Student: 201 Created
+    alt save or analysis failed
+        SUB->>FS: DELETE /internal/files/{fileId}
+        SUB-->>GW: error (work rolled back)
+        GW-->>Student: 4xx / 5xx
+    else success
+        SUB-->>GW: WorkResponse
+        GW-->>Student: 201 Created
+    end
 ```
 
 ---
 
-### UC-2. Преподаватель просматривает историю отчётов
+### UC-2. A teacher views the report history
 
-**Актор:** преподаватель  
-**Цель:** получить все технические отчёты по `workId`.
+**Actor:** teacher
+**Goal:** get all technical reports of a `workId`.
 
-| Шаг | Действие |
-|-----|----------|
-| 1 | `GET /works/{workId}/reports` через Gateway. |
-| 2 | Ответ — массив отчётов, отсортированных по дате (новые первыми). |
+| Step | Action |
+|------|--------|
+| 1 | `GET /works/{workId}/reports` through the gateway. |
+| 2 | Response: an array of reports sorted by date (newest first). |
 
-*Примечание:* при обычной сдаче через UC-1 создаётся один отчёт; массив рассчитан на повторные вызовы `POST /internal/analysis` (внутренний сценарий).
-
----
-
-### UC-3. Визуализация содержания работы (облако слов)
-
-**Актор:** преподаватель / аналитик  
-**Цель:** увидеть частотный «срез» текста работы.
-
-| Шаг | Действие |
-|-----|----------|
-| 1 | После сдачи работы (UC-1) вызвать `GET /works/{workId}/word-cloud`. |
-| 2 | При `status: READY` использовать массив `terms` для UI-облака. |
-| 3 | При `NO_TEXT` / `FAILED` — показать сообщение пользователю. |
+*Note:* a regular UC-1 submission creates one report; the array exists for repeated
+`POST /internal/analysis` calls (internal scenario).
 
 ---
 
-### UC-4. Прямая загрузка файла (без привязки к работе)
+### UC-3. Work content visualization (word cloud)
 
-**Актор:** интегратор / тестировщик  
-**Цель:** сохранить файл и получить `fileId`.
+**Actor:** teacher / analyst
+**Goal:** see the word frequencies of the work text.
 
-| Шаг | Действие |
-|-----|----------|
-| 1 | `POST /files` с multipart `file`. |
-| 2 | `GET /files/{fileId}` — скачивание (через Gateway). |
-
-*Примечание:* полный учебный сценарий предполагает сдачу через UC-1; UC-4 полезен для отладки file-storing.
+| Step | Action |
+|------|--------|
+| 1 | After submitting the work (UC-1), call `GET /works/{workId}/word-cloud`. |
+| 2 | With `status: READY` use the `terms` array for the cloud in the UI. |
+| 3 | With `NO_TEXT` / `FAILED` show a message to the user. |
 
 ---
 
-## Технические сценарии взаимодействия сервисов
+### UC-4. Direct file upload (without a work)
 
-### TS-1. Синхронная оркестрация при submit
+**Actor:** integrator / tester
+**Goal:** store a file and get a `fileId`.
 
-| # | От | К | Метод | Данные |
+| Step | Action |
+|------|--------|
+| 1 | `POST /files` with a multipart `file`. |
+| 2 | `GET /files/{fileId}` - download through the gateway. |
+
+*Note:* the regular flow is the UC-1 submission; UC-4 is useful for debugging file-storing.
+
+---
+
+## Service interaction scenarios
+
+### TS-1. Synchronous orchestration on submit
+
+| # | From | To | Method | Data |
 |---|---|---|--------|--------|
 | 1 | submission | file-storing | `POST /files` | `MultipartFile` |
 | 2 | submission | analysis | `POST /internal/analysis` | JSON `AnalyzeWorkRequest` |
-| 3 | analysis | file-storing | `GET /files/{fileId}` | проверка + скачивание для word cloud |
+| 3 | analysis | file-storing | `GET /files/{fileId}` | existence check + download for the word cloud |
+| 4 | submission | file-storing | `DELETE /internal/files/{fileId}` | only if step 2 or saving the work failed |
 
-**AnalyzeWorkRequest** (тело внутреннего вызова):
+**AnalyzeWorkRequest** (body of the internal call):
 
 ```json
 {
@@ -232,11 +269,16 @@ sequenceDiagram
 }
 ```
 
-**Отказоустойчивость:** если файл не найден в file-storing, analysis возвращает `400`; submission пробрасывает `400` клиенту. Транзакция JPA в submission **откатывает** запись в `works`, если analyze завершился ошибкой после `save`, но файл в file-storing **уже сохранён** и может остаться без привязки к работе (сиротский артефакт).
+**Failure handling:** if the file is missing in file-storing, analysis returns `400` and submission
+passes the `400` to the client. Whenever saving the work or the analysis call fails, the JPA
+transaction in submission rolls back the `works` row and submission deletes the stored file
+(compensating action). If that delete also fails, the error is logged and attached to the original
+exception as suppressed; the file then stays in storage (see
+[Known limitations](#known-limitations)).
 
 ---
 
-### TS-2. Техническая проверка (без парсинга текста)
+### TS-2. Technical check (without parsing the text)
 
 ```mermaid
 flowchart LR
@@ -251,22 +293,23 @@ flowchart LR
     G --> H[Write report JSON]
 ```
 
-Правила совпадают с валидацией на submission/file-storing: **pdf, docx, txt**, ≤ 1 MiB, без ZIP.
+The rules come from the shared **file-validation** module and are the same as on upload:
+**pdf, docx, txt**, at most 1 MiB, no ZIP.
 
 ---
 
-### TS-3. Построение word cloud
+### TS-3. Building the word cloud
 
 ```mermaid
 flowchart TD
-    A[После техпроверки] --> B[Download file bytes]
+    A[After the technical check] --> B[Download file bytes]
     B --> C[TextExtractionService - Apache Tika]
-    C --> D{текст пуст?}
-    D -->|да| E[status NO_TEXT]
-    D -->|нет| F[WordFrequencyService]
-    F --> G{есть термины?}
-    G -->|нет| E
-    G -->|да| H[status READY + terms]
+    C --> D{text empty?}
+    D -->|yes| E[status NO_TEXT]
+    D -->|no| F[WordFrequencyService]
+    F --> G{any terms?}
+    G -->|no| E
+    G -->|yes| H[status READY + terms]
     B -.->|exception| I[status FAILED]
     E --> J[(work_word_clouds)]
     H --> J
@@ -275,21 +318,22 @@ flowchart TD
 
 ---
 
-### TS-4. Чтение через Gateway (без submission)
+### TS-4. Reads through the gateway (without submission)
 
-| Запрос клиента | Сервис-получатель | Примечание |
+| Client request | Target service | Note |
 |----------------|-------------------|------------|
-| `GET /works/{id}/reports` | analysis-service | Только чтение из analysis-db |
-| `GET /works/{id}/word-cloud` | analysis-service | 404 если analyze ещё не вызывался |
-| `GET /files/{id}` | file-storing-service | Бинарное тело файла |
+| `GET /works/{id}/reports` | analysis-service | Read-only from analysis-db |
+| `GET /works/{id}/word-cloud` | analysis-service | 404 if the analysis has not run yet |
+| `GET /files/{id}` | file-storing-service | Binary file body |
 
-submission-service в этих сценариях **не участвует**.
+submission-service is **not** involved in these scenarios.
 
 ---
 
-### TS-5. Хранение данных по сервисам
+### TS-5. Data storage per service
 
-Ниже — **логическая** модель (две отдельные БД: `works` в submission-db, отчёты и word cloud в analysis-db; FK между инстансами PostgreSQL нет).
+The **logical** model below spans two separate databases: `works` in submission-db, reports and
+word cloud in analysis-db. There are no foreign keys between the PostgreSQL instances.
 
 ```mermaid
 erDiagram
@@ -333,57 +377,67 @@ erDiagram
     }
 ```
 
-**Вне БД:**
+**Outside the databases:**
 
-| Сервис | Артефакт | Путь (по умолчанию) |
+| Service | Artifact | Path (default) |
 |--------|----------|---------------------|
-| file-storing | файлы работ | `STORAGE_FILES_PATH` / volume Docker |
-| analysis | JSON отчётов | `STORAGE_REPORTS_PATH` |
+| file-storing | work files + `metadata.json` per file | `STORAGE_FILES_PATH` / Docker volume |
+| analysis | report JSON files | `STORAGE_REPORTS_PATH` |
 
-Связь между БД — логическая: общие `workId` и `fileId` (UUID), без FK между PostgreSQL инстансами.
+The databases are linked only logically through shared `workId` and `fileId` (UUID).
 
 ---
 
-## Модели данных
+## Data models
 
-### WorkResponse (ответ на submit)
+### WorkResponse (submit response)
 
-| Поле | Тип | Описание |
+| Field | Type | Description |
 |------|-----|----------|
-| `id` | UUID | Идентификатор работы |
-| `studentFullName` | string | ФИО |
-| `submittedAt` | ISO-8601 | Время сдачи |
-| `originalFileName` | string | Имя файла |
-| `fileId` | UUID | Ссылка на file-storing |
-| `fileSizeBytes` | number | Размер |
-| `contentType` | string | MIME |
+| `id` | UUID | Work id |
+| `studentFullName` | string | Student full name (trimmed) |
+| `submittedAt` | ISO-8601 | Submission time |
+| `originalFileName` | string | File name |
+| `fileId` | UUID | Reference to file-storing |
+| `fileSizeBytes` | number | Size |
+| `contentType` | string | MIME type |
 | `technicalReport` | object | `id`, `status`, `remarks`, `checkedAt` |
 
 ### WordCloudResponse
 
-| Поле | Тип | Описание |
+| Field | Type | Description |
 |------|-----|----------|
-| `workId` | UUID | Работа |
-| `fileId` | UUID | Файл-источник |
-| `generatedAt` | ISO-8601 | Время расчёта |
+| `workId` | UUID | Work |
+| `fileId` | UUID | Source file |
+| `generatedAt` | ISO-8601 | Calculation time |
 | `status` | enum | `READY` \| `NO_TEXT` \| `FAILED` |
 | `terms` | array | `{ "text": "...", "weight": N }` |
 
+Errors are returned as RFC 7807 `ProblemDetail` JSON with a `detail` field.
+
 ---
 
-## Публичное API (через Gateway)
+## Public API (through the gateway)
 
-Базовый URL: `http://localhost:8090`
+Base URL: `http://localhost:8090`
 
-| Метод | Путь | Коды | Описание |
+| Method | Path | Codes | Description |
 |-------|------|------|----------|
-| `POST` | `/works` | `201`, `400` | Сдать работу (`studentFullName`, `file`) |
-| `GET` | `/works/{workId}/reports` | `200` | Список технических отчётов (может быть пустым) |
-| `GET` | `/works/{workId}/word-cloud` | `200`, `404` | Данные для облака слов (`404` — analyze ещё не выполнялся) |
-| `POST` | `/files` | `201`, `400` | Загрузить файл |
-| `GET` | `/files/{fileId}` | `200`, `404` | Скачать файл |
+| `POST` | `/works` | `201`, `400`, `413` | Submit a work (`studentFullName`, `file`). `400` for a disallowed file or blank name; a file over the 1 MiB upload limit can get `413` |
+| `GET` | `/works/{workId}/reports` | `200`, `400` | List of technical reports (may be empty); `400` for a malformed UUID |
+| `GET` | `/works/{workId}/word-cloud` | `200`, `404` | Word cloud data (`404` - the analysis has not run) |
+| `POST` | `/files` | `201`, `400` | Upload a file |
+| `GET` | `/files/{fileId}` | `200`, `404` | Download a file |
+| `GET` | `/actuator/health` | `200` | Gateway health |
 
-**Swagger UI (через Gateway, springdoc 2.x):**
+**Internal endpoints (not routed by the gateway):**
+
+| Service | Method | Path | Called by |
+|---------|--------|------|-----------|
+| analysis-service | `POST` | `/internal/analysis` | submission-service |
+| file-storing-service | `DELETE` | `/internal/files/{fileId}` | submission-service (compensation) |
+
+**Swagger UI (through the gateway, springdoc 2.x):**
 
 - `http://localhost:8090/swagger/submission/swagger-ui/index.html`
 - `http://localhost:8090/swagger/files/swagger-ui/index.html`
@@ -391,41 +445,52 @@ erDiagram
 
 ---
 
-## Сборка и зависимости
+## Build and dependencies
 
-Проект собирается двумя способами: **Docker Compose** (рекомендуется для запуска всей системы) и **Gradle на хосте** (тесты, JaCoCo, локальная разработка без контейнеров).
+The project is built in two ways: **Docker Compose** (recommended for running the whole system) and
+**Gradle on the host** (tests, JaCoCo, local development without containers).
 
 ### Docker Compose (`docker compose up --build`)
 
-Команда **собирает образы** микросервисов и **запускает** все контейнеры. При первом запуске Docker также **скачивает** базовые образы из реестра.
+The command **builds** the images and **starts** all containers. On the first run Docker also
+**pulls** the base images.
 
-| Шаг | Что происходит |
+| Step | What happens |
 |-----|----------------|
-| 1 | Скачивание образов `postgres:16-alpine`, `eclipse-temurin:17`, `nginx:1.27-alpine` (если их ещё нет локально) |
-| 2 | **gateway**, **submission-service**, **file-storing-service**, **analysis-service** — multi-stage сборка: внутри контейнера выполняется `./gradlew :<модуль>:bootJar -x test` |
-| 3 | Gradle загружает **зависимости Java** из **Maven Central** (Spring Boot, Spring Cloud Gateway, PostgreSQL driver, Flyway, Apache Tika, springdoc и транзитивные JAR) в кэш сборки Docker-слоя |
-| 4 | В runtime-образ попадает только **JRE + готовый JAR**; исходники в финальный образ не копируются |
-| 5 | **web-ui** — multi-stage: в JDK-стадии `./gradlew check copyJacocoReportsForWeb` (unit-тесты трёх backend-сервисов, JaCoCo ≥ 60%, HTML в `web-ui/reports/`); в nginx — `index.html`, `assets/`, отчёты |
-| 6 | Контейнеры стартуют в порядке `depends_on`; БД и backend ждут `healthy` |
+| 1 | Pulls `postgres:16-alpine`, `eclipse-temurin:17`, `nginx:1.27-alpine` (if not present locally) |
+| 2 | **gateway**, **submission-service**, **file-storing-service**, **analysis-service** - multi-stage build: `./gradlew :<module>:bootJar -x test` runs inside the container |
+| 3 | Gradle downloads the **Java dependencies** from **Maven Central** (Spring Boot, Spring Cloud Gateway, PostgreSQL driver, Flyway, Apache Tika, springdoc and transitive JARs) into the Docker layer cache |
+| 4 | The runtime image contains only **JRE + the JAR**; sources are not copied into the final image |
+| 5 | **web-ui** - multi-stage: the JDK stage runs `./gradlew check copyJacocoReportsForWeb` (unit tests, 100% JaCoCo gate, HTML into `web-ui/reports/`); the nginx stage gets `index.html`, `assets/` and the reports |
+| 6 | Containers start in `depends_on` order; every container waits for its dependencies to be `healthy` |
 
-Сборка **web-ui** дольше остальных (прогон тестов). JAR-сервисы по-прежнему собираются с `-x test`, чтобы не дублировать тесты три раза.
+The **web-ui** build takes longer than the others because it runs the tests. The service JARs are
+built with `-x test` so the tests do not run several times.
 
-Список сервисов и портов — в [архитектуре](#архитектура) и `docker-compose.yml`.
+Services and ports are listed in [Architecture](#architecture) and `docker-compose.yml`.
 
-### Зависимости веб-портала (web-ui)
+### Web portal dependencies (web-ui)
 
-| Компонент | Когда подтягивается | Откуда |
+| Component | When it is fetched | From |
 |-----------|---------------------|--------|
-| HTML, CSS, JS портала (`app.js`) | Сборка образа `web-ui` | Файлы репозитория → nginx |
-| PNG-схемы | Сборка образа `web-ui` | `web-ui/assets/images/` |
-| JaCoCo HTML (`/reports/submission`, `files`, `analysis`) | Сборка образа `web-ui` (Gradle `check` + `copyJacocoReportsForWeb`) | Генерируются в Docker, не нужно вручную на хосте |
-| **wordcloud2.js** | **При открытии страницы в браузере** | CDN [jsDelivr](https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.min.js) (MIT) |
+| Portal HTML, CSS, JS (`app.js`) | `web-ui` image build | Repository files -> nginx |
+| PNG diagrams | `web-ui` image build | `web-ui/assets/images/` |
+| JaCoCo HTML (`/reports/submission`, `files`, `analysis`, `gateway`, `file-validation`) | `web-ui` image build (Gradle `check` + `copyJacocoReportsForWeb`) | Generated inside Docker, nothing to do on the host |
+| **wordcloud2.js** | **When the page is opened in the browser** | CDN [jsDelivr](https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.min.js) (MIT) |
 
-Отрисовка облака слов — в браузере; **подсчёт терминов** — в **analysis-service** (Java). Данные работ на CDN не отправляются.
+The cloud is drawn in the browser; the **terms are computed** in **analysis-service** (Java). Work
+data is not sent to the CDN.
 
-Для работы портала **без интернета** wordcloud2 можно включить в образ: положить `wordcloud2.min.js` в `web-ui/assets/vendor/` и изменить `<script src="...">` в `index.html`.
+To use the portal **without internet access**, put `wordcloud2.min.js` into
+`web-ui/assets/vendor/` and change the `<script src="...">` in `index.html`.
 
-### Сборка на хосте (Gradle)
+The PNG diagrams are rendered from `web-ui/diagrams/plantuml/*.puml`. After changing a diagram:
+
+```bash
+./gradlew renderDiagrams
+```
+
+### Build on the host (Gradle)
 
 ```bash
 # Windows
@@ -435,73 +500,80 @@ gradlew.bat build
 ./gradlew build
 ```
 
-Загружает те же Maven-зависимости в локальный кэш `~/.gradle`. Задача `check` — тесты и проверка JaCoCo (≥ 60%). Задача `copyJacocoReportsForWeb` копирует HTML-отчёты в `web-ui/reports/` для раздела JaCoCo на портале.
+Downloads the same Maven dependencies into the local `~/.gradle` cache. The `check` task runs the
+unit tests and the JaCoCo gate (100%). `copyJacocoReportsForWeb` copies the HTML reports into
+`web-ui/reports/` for the JaCoCo section of the portal. The end-to-end tests are compiled but not
+run by `build`.
 
-Для запуска JAR без Docker нужны локальные PostgreSQL и переменные из `application.yml` (см. [локальная разработка](#локальная-разработка-без-docker)).
+To run the JARs without Docker you need local PostgreSQL and the variables from `application.yml`
+(see [local development](#local-development-without-docker)).
 
 ---
 
-## Запуск и проверка
+## Running and checking
 
-### Требования
+### Requirements
 
-- **Docker Compose** — для полного стека (JDK на хосте не обязателен)
-- **JDK 17+** и **Gradle (gradlew)** — для тестов и сборки без Docker
+- **Docker Compose** - for the full stack (a JDK on the host is not required)
+- **JDK 17+** and **Gradle (gradlew)** - for tests and builds without Docker
 
 ### Docker Compose
 
-Из корня репозитория:
+From the repository root:
 
 ```bash
-# Сборка образов и запуск всех сервисов (логи в консоли)
+# Build the images and start all services (logs in the console)
 docker compose up --build
 
-# То же в фоне
+# Same, in the background
 docker compose up --build -d
 
-# Остановка
+# Stop
 docker compose down
 
-# Остановка и удаление томов БД/файлов
+# Stop and remove database and file volumes
 docker compose down -v
 ```
 
-**Windows (PowerShell):** те же команды; при локальной сборке без Docker — `gradlew.bat` вместо `./gradlew`.
+**Windows (PowerShell):** the same commands; for builds without Docker use `gradlew.bat` instead of
+`./gradlew`.
 
-Дождитесь статуса `healthy` у **submission-service**, **file-storing-service**, **analysis-service** и обеих БД (`docker compose ps`). **gateway** и **web-ui** будут в состоянии `running` (отдельного health-check в Compose для них нет).
+Wait until all containers are `healthy` (`docker compose ps`): both databases, the three services,
+the gateway and web-ui.
 
-| URL | Назначение |
+| URL | Purpose |
 |-----|------------|
-| http://localhost:8094 | Веб-портал |
-| http://localhost:8090 | API Gateway (запросы с портала и Swagger) |
+| http://localhost:8094 | Web portal |
+| http://localhost:8090 | API Gateway (portal and Swagger requests) |
 
-Проверка backend-сервисов:
+Health checks:
 
 ```bash
+curl http://localhost:8090/actuator/health
 curl http://localhost:8091/actuator/health
 curl http://localhost:8092/actuator/health
 curl http://localhost:8093/actuator/health
 ```
 
-Проверка через Gateway (после старта всех контейнеров — ожидается HTML Swagger UI):
+Check through the gateway (after all containers are up, Swagger UI HTML is expected):
 
 ```bash
 curl http://localhost:8090/swagger/submission/swagger-ui/index.html
 ```
 
-### Локальная разработка (без Docker)
+### Local development (without Docker)
 
-1. Поднять PostgreSQL (значения по умолчанию из `application.yml`):
+1. Start PostgreSQL (defaults from `application.yml`):
 
-| Инстанс | Порт | Database | User / Password |
+| Instance | Port | Database | User / Password |
 |---------|------|----------|-----------------|
 | submission | 5433 | `cosmoscan_submission` | `cosmoscan` / `cosmoscan` |
 | analysis | 5434 | `cosmoscan_analysis` | `cosmoscan` / `cosmoscan` |
 
-2. Запустить сервисы по порядку: file-storing → analysis → submission → gateway.
-3. Переменные окружения — см. `application.yml` в каждом модуле.
+2. Start the services in this order: file-storing -> analysis -> submission -> gateway.
+3. Environment variables are listed in `application.yml` of each module.
 
-### Пример: сдача работы
+### Example: submit a work
 
 ```bash
 curl -X POST http://localhost:8090/works \
@@ -510,90 +582,160 @@ curl -X POST http://localhost:8090/works \
 ```
 
 ```bash
-# подставьте UUID из поля id ответа POST /works
+# use the UUID from the "id" field of the POST /works response
 curl http://localhost:8090/works/00000000-0000-0000-0000-000000000001/word-cloud
 ```
 
 ---
 
-## Веб-портал (web-ui)
+## Web portal (web-ui)
 
-Каталог `web-ui/` — статический портал на **nginx** (контейнер `web-ui`, порт **8094**).
+The `web-ui/` folder is a static portal on **nginx** (container `web-ui`, port **8094**).
 
-| Раздел портала | Описание |
+| Portal section | Description |
 |----------------|----------|
-| Подключение к API | Базовый URL Gateway (по умолчанию `http://localhost:8090`) |
-| Swagger / Health | Ссылки и кнопка проверки Actuator |
-| UC-1 | Сдача работы (`POST /works`) |
-| UC-2 | Технические отчёты по UUID |
-| UC-3 | Кнопка «Получить облако слов» + canvas |
-| JaCoCo | Ссылки на HTML-отчёты покрытия |
-| Архитектура | Схемы системы и UC-1 (`assets/images/`) |
+| API connection | Gateway base URL (default `http://localhost:8090`) |
+| Swagger / Health | Links to Swagger UI and to the Actuator health of the gateway and services |
+| UC-1 | Submit a work (`POST /works`) |
+| UC-2 | Technical reports by UUID |
+| UC-3 | "Get word cloud" button + canvas |
+| JaCoCo | Links to the HTML coverage reports |
+| Architecture | System and UC-1 diagrams (`assets/images/`) |
 
-API-запросы портала идут на Gateway (`localhost:8090`). Внешний JS — **wordcloud2** с CDN (см. [сборка и зависимости](#сборка-и-зависимости)).
+Portal API requests go to the gateway (`localhost:8090`). The only external JS is **wordcloud2**
+from a CDN (see [Build and dependencies](#build-and-dependencies)).
 
-Отчёты JaCoCo после `docker compose up --build`: http://localhost:8094/reports/submission/index.html (и `files`, `analysis`).
+JaCoCo reports after `docker compose up --build`:
+http://localhost:8094/reports/submission/index.html (and `files`, `analysis`, `gateway`,
+`file-validation`).
 
 ---
 
-## Тестирование
+## Testing
 
-При сборке образа **web-ui** в Docker автоматически выполняются `check` и `copyJacocoReportsForWeb`. Локально то же самое:
+| Level | Where | Runs in `build` | Needs the stack |
+|-------|-------|-----------------|-----------------|
+| Unit tests | `*/src/test` | yes | no |
+| End-to-end API tests | `e2e-tests/` | no (compiled only) | yes |
+| Postman checks | `postman/` | no | yes |
+
+### Unit tests and coverage
+
+Unit tests use JUnit 5, Mockito, AssertJ, standalone MockMvc (controllers), `MockRestServiceServer`
+(HTTP clients) and one `@WebMvcTest` for request validation. They need no database or network.
+
+JaCoCo is a hard gate: `check` fails unless **instructions, lines and branches are 100% covered** in
+gateway, submission-service, file-storing-service, analysis-service and file-validation. There are
+no exclusions.
 
 ```bash
-# Все проверки включая JaCoCo ≥ 60% (Linux/macOS)
+# All unit tests + JaCoCo gate (Linux/macOS)
 ./gradlew check
 
 # Windows
 gradlew.bat check
 
-# Только analysis-service
+# One module
 ./gradlew :analysis-service:test
 
-# Копирование HTML-отчётов JaCoCo в web-ui/reports/ (уже входит в сборку web-ui Docker)
+# Copy the JaCoCo HTML reports into web-ui/reports/ (already part of the web-ui Docker build)
 ./gradlew copyJacocoReportsForWeb
 ```
 
-Скрипты Postman: `postman/cosmoscan-api-tests.js` — вставляются во вкладку **Tests** соответствующих запросов коллекции. Подробное описание и инструкция в файле.
+HTML reports: `<module>/build/reports/jacoco/test/html/index.html`.
+
+### End-to-end API tests
+
+`e2e-tests/` holds black-box tests (JUnit 5 + REST Assured) that call the API through the gateway,
+exactly like a client:
+
+| Test class | What it checks |
+|------------|----------------|
+| `SubmitWorkE2eTest` | UC-1 to UC-3 for `.txt`, `.docx` and `.pdf`: submit, report history, word cloud with the expected top word, download of the stored file |
+| `SubmitWorkValidationE2eTest` | Rejected files (format, missing extension, ZIP, empty, over 1 MiB), the 1 MiB boundary, missing or blank student name, missing file |
+| `ReadApiE2eTest` | Reads for unknown works, malformed UUID, `NO_TEXT` word cloud |
+| `FileStorageE2eTest` | UC-4: upload/download round trip, validation on direct upload, unknown file |
+| `GatewayE2eTest` | Gateway health, Swagger routing, internal endpoints not exposed, unknown route |
+
+Fixtures with one dominant word each are in `e2e-tests/src/test/resources/files/`.
+
+The tests are not part of `build`/`check` (the regular `test` task of the module is disabled). Run
+them against a running stack:
+
+```bash
+docker compose up --build -d
+./gradlew :e2e-tests:e2eTest
+
+# another gateway address
+./gradlew :e2e-tests:e2eTest -Pcosmoscan.baseUrl=http://my-host:8090
+```
+
+The gateway address can also be set with the `COSMOSCAN_BASE_URL` environment variable. The tests
+are not wired into CI yet.
+
+### Postman
+
+Manual checks with Postman test scripts: see [postman/README.md](postman/README.md).
 
 ---
 
-## Зависимости и лицензии
+## Known limitations
 
-Используются **permissive** лицензии (Apache-2.0, MIT, BSD-подобные). Copyleft (GPL для всего приложения) в прямых зависимостях runtime нет. 
+- **No authentication or authorization.** Every public endpoint is open; internal endpoints are
+  protected only by not being routed through the gateway. The services' own ports (8091-8093) are
+  published by Compose for debugging, so internal endpoints are reachable on those ports.
+- **Compensation is best effort.** If deleting the stored file after a failed submit also fails, the
+  file stays in storage (the error is logged). Data written by analysis-service before a later
+  failure in submission (report, word cloud) is not rolled back.
+- **Synchronous processing.** Text extraction and the word cloud run inside the `POST /works`
+  request, so large documents make the request slower.
+- **End-to-end tests are not run automatically** - there is no CI pipeline yet.
+
+---
+
+## Dependencies and licenses
+
+Only **permissive** licenses (Apache-2.0, MIT, BSD-style) are used in runtime dependencies. There is
+no copyleft (application-wide GPL) in direct runtime dependencies.
 
 ### Backend (Gradle / Maven Central)
 
-| Зависимость | Модули | Лицензия | Назначение |
+| Dependency | Modules | License | Purpose |
 |-------------|--------|----------|------------|
-| Spring Boot 3.3.x | submission, file-storing, analysis | **Apache-2.0** | REST, JPA, Validation, Actuator |
+| Spring Boot 3.3.x | all services | **Apache-2.0** | REST, JPA, Validation, Actuator |
 | Spring Cloud Gateway 2023.0.x | gateway | **Apache-2.0** | API Gateway |
 | springdoc-openapi 2.6.x | submission, file-storing, analysis | **Apache-2.0** | Swagger UI / OpenAPI |
-| Flyway | submission, analysis | **Apache-2.0** | Миграции БД |
-| PostgreSQL JDBC Driver | submission, analysis | **BSD-2-Clause** (PostgreSQL License) | Драйвер БД |
-| **Apache Tika 2.9.2** (`tika-core`, `tika-parsers-standard-package`) | analysis | **Apache-2.0** | Извлечение текста из pdf/docx/txt |
-| reactive-streams | submission | **MIT** | Транзитивная зависимость |
-| JUnit 5, Spring Boot Test | тесты | **EPL-2.0** | Только тесты, не в production JAR |
-| JaCoCo | тесты / `check` | **EPL-2.0** | Отчёты покрытия |
+| Flyway | submission, analysis | **Apache-2.0** | Database migrations |
+| PostgreSQL JDBC Driver | submission, analysis | **BSD-2-Clause** (PostgreSQL License) | Database driver |
+| **Apache Tika 2.9.2** (`tika-core`, `tika-parsers-standard-package`) | analysis | **Apache-2.0** | Text extraction from pdf/docx/txt |
+| reactive-streams | submission | **MIT** | Transitive dependency |
+| JUnit 5, Mockito, AssertJ, Spring Boot Test | tests | **EPL-2.0** / **MIT** / **Apache-2.0** | Tests only, not in the production JARs |
+| REST Assured | e2e-tests | **Apache-2.0** | End-to-end API tests only |
+| JaCoCo | tests / `check` | **EPL-2.0** | Coverage reports |
+| PlantUML (`plantuml-mit`) | build-time `renderDiagrams` | **MIT** | Renders the portal diagrams; not shipped |
 
-**Собственный код (без сторонних NLP-библиотек):** `WordFrequencyService`, `TechnicalCheckService`, стоп-слова и токенизация для word cloud.
+**Own code (no third-party NLP libraries):** `WordFrequencyService`, `TechnicalCheckService`, stop
+words and tokenization for the word cloud.
 
-**Tika:** пакет `tika-parsers-standard-package` подтягивает транзитивные JAR парсеров (PDF и др.); для строгого compliance в организации имеет смысл сформировать полное дерево: `./gradlew :analysis-service:dependencies`.
+**Tika:** `tika-parsers-standard-package` brings transitive parser JARs (PDF and others); for strict
+compliance in an organization, produce the full tree with
+`./gradlew :analysis-service:dependencies`.
 
-### Веб-портал (`web-ui/`)
+### Web portal (`web-ui/`)
 
-| Компонент | Версия | Лицензия | Назначение |
+| Component | Version | License | Purpose |
 |-----------|--------|----------|------------|
-| **wordcloud2.js** (npm `wordcloud`) | 1.2.2 | **MIT** | Отрисовка облака на `<canvas>` по JSON с API |
-| nginx (образ Docker) | 1.27-alpine | **BSD-2-Clause** | Раздача статики |
+| **wordcloud2.js** (npm `wordcloud`) | 1.2.2 | **MIT** | Draws the cloud on a `<canvas>` from the API JSON |
+| nginx (Docker image) | 1.27-alpine | **BSD-2-Clause** | Serves the static files |
 
-Подключение wordcloud2 в `index.html` — CDN jsDelivr (`wordcloud@1.2.2`, MIT). Диаграммы: `web-ui/diagrams/plantuml/`, PNG в `web-ui/assets/images/`.
+wordcloud2 is loaded in `index.html` from the jsDelivr CDN (`wordcloud@1.2.2`, MIT). Diagram
+sources: `web-ui/diagrams/plantuml/`, PNGs in `web-ui/assets/images/`.
 
-Собственные файлы портала: `index.html`, `assets/css/style.css`, `assets/js/app.js`.
+Own portal files: `index.html`, `assets/css/style.css`, `assets/js/app.js`.
 
-### Docker-образы (Compose)
+### Docker images (Compose)
 
-| Образ | Лицензия (типично) |
+| Image | License (typical) |
 |-------|---------------------|
 | `eclipse-temurin:17` | **GPLv2 + Classpath Exception** (JRE) |
 | `postgres:16-alpine` | **PostgreSQL License** |
@@ -601,7 +743,7 @@ gradlew.bat check
 
 ---
 
-## Структура репозитория
+## Repository structure
 
 ```
 CosmoScan/
@@ -609,6 +751,8 @@ CosmoScan/
 ├── submission-service/
 ├── file-storing-service/
 ├── analysis-service/
+├── file-validation/          shared file rules (library)
+├── e2e-tests/                end-to-end API tests
 ├── web-ui/
 │   ├── index.html
 │   ├── assets/
@@ -617,7 +761,9 @@ CosmoScan/
 │   ├── Dockerfile
 │   └── reports/
 ├── postman/
-│   └── cosmoscan-api-tests.js
+│   ├── README.md
+│   ├── cosmoscan-api-tests.js
+│   └── files/
 ├── docker-compose.yml
 ├── build.gradle
 └── settings.gradle
